@@ -1,9 +1,16 @@
 {
-  "name": "Голосовые заметки",
-  "short_name": "Заметки",
-  "start_url": ".",
+  "name": "Голосовой ассистент",
+  "short_name": "Ассистент",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#08080d",
   "theme_color": "#08080d",
-  "lang": "ru"
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
 }
