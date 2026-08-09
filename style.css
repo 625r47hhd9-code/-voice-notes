@@ -82,3 +82,15 @@ body.light .search,body.light .icon-btn,body.light .group,body.light .task-card,
 body.light .note-text,body.light .group-name,body.light .task-title,body.light .employee-name,body.light .emp-task,body.light .voice-copy b{color:#18151d!important}
 body.light .group-meta,body.light .task-meta,body.light .employee-role,body.light .voice-copy small{color:#6e6875!important}
 body.light .voice-bar{background:#fff!important;border-color:#b67ce7!important}
+
+/* v7.2 — fixed navigation, voice tile and label spacing */
+.app{height:100dvh!important;overflow:hidden!important}
+.topbar{position:absolute!important;top:0;left:0;right:0;z-index:30!important}
+.swipe-stage{position:absolute!important;top:76px!important;bottom:calc(82px + env(safe-area-inset-bottom))!important;overflow:hidden!important}
+.swipe-page{padding-bottom:124px!important}
+.screen{top:76px!important;bottom:calc(82px + env(safe-area-inset-bottom))!important;overflow-y:auto!important;padding-bottom:36px!important}
+.bottom-nav{position:fixed!important;left:50%!important;right:auto!important;transform:translateX(-50%)!important;bottom:0!important;width:min(700px,100%)!important;height:calc(72px + env(safe-area-inset-bottom))!important;padding-bottom:env(safe-area-inset-bottom)!important;z-index:100!important;background:#09090ff5!important;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.voice-bar{position:sticky!important;bottom:10px!important;z-index:15!important;cursor:pointer;margin-bottom:4px!important}
+.voice-bar:active{transform:scale(.992)}
+.groups{padding-bottom:8px}.group-head{min-height:74px}.group-main{display:flex!important;flex-direction:column!important;min-width:0!important}.group-name{display:block!important;line-height:1.18!important;margin-bottom:5px!important}.group-meta{display:block!important;line-height:1.2!important}
+.employee-head{min-height:94px}.employee-info{display:flex!important;flex-direction:column!important;min-width:0!important}.employee-name{display:block!important;line-height:1.15!important;margin-bottom:6px!important}.employee-role{display:block!important;line-height:1.25!important}
