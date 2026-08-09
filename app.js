@@ -226,3 +226,8 @@ const renderNotebookV73=renderNotebook;
 renderNotebook=function(){renderNotebookV73();requestAnimationFrame(nbResize)};
 window.addEventListener("resize",()=>requestAnimationFrame(nbResize));
 requestAnimationFrame(nbResize);
+
+/* v7.5 visible version marker */
+const APP_VERSION="7.5";
+const versionEl=$("#versionBadge");
+if(versionEl) versionEl.textContent="v"+APP_VERSION;
