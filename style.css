@@ -1,5 +1,5 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-:root{--bg:#08080d;--panel:#111119;--text:#f7f4fb;--muted:#878391;--line:#272432;--purple:#aa5cff}
+:root{--bg:#09090f;--panel:#161621;--panel2:#1d1d2a;--text:#ffffff;--muted:#aaa6b4;--line:#373344;--purple:#b45cff}
 html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",sans-serif}
 body{min-height:100dvh;overflow:hidden}
 button,input,textarea{font:inherit}button{border:0;background:none;color:inherit}
@@ -28,3 +28,57 @@ button,.mic,.voice-bar,.tab,.icon-btn{-webkit-user-select:none;user-select:none;
 .bottom-nav{position:absolute;left:0;right:0;bottom:0;height:76px;padding-bottom:env(safe-area-inset-bottom);background:#09090eee;border-top:1px solid #1d1c24;display:flex;z-index:20}.tab{flex:1;color:#77717e;font-size:21px}.tab small{display:block;font-size:11px;margin-top:3px}.tab.active{color:#a85cff}
 .modal{position:fixed;inset:0;background:#0009;backdrop-filter:blur(8px);z-index:50;display:flex;align-items:flex-end}.sheet{width:100%;max-width:700px;margin:auto;background:#15151d;border-radius:23px 23px 0 0;padding:20px 16px 24px;max-height:82vh;overflow:auto;position:relative}.close{position:absolute;right:14px;top:8px;font-size:28px;color:#888}.form{display:grid;gap:9px;margin-top:14px}.field,.select{width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;background:#0e0e14;color:#fff}.primary{padding:12px;border-radius:12px;background:#8639e7;font-weight:800}.action{width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;background:#0e0e14;text-align:left;margin:4px 0}.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.cal-day{aspect-ratio:1;display:grid;place-items:center;border-radius:9px;background:#101017;color:#aaa}.cal-day.today{background:#6e32ad;color:#fff}
 body.light{--bg:#f5f4f8;--panel:#fff;--text:#17151c;--muted:#77717f;--line:#ded9e4}
+
+/* v7.1 readability / contrast */
+html,body{background:#09090f!important}
+.app{background:radial-gradient(circle at 50% 20%,#21112f 0,#0b0a11 42%,#09090f 75%)!important}
+.search,.icon-btn{background:#12121a!important;border-color:#373344!important}
+.search input{color:#fff!important;font-size:18px!important;font-weight:600}
+.search input::placeholder{color:#aaa6b4!important}
+.note-text{color:#fff!important;font-size:20px!important;font-weight:750;line-height:1.35}
+.note{padding:15px 0!important}
+.check{width:24px!important;height:24px!important;border:2px solid #7c7688!important}
+.groups-title{font-size:14px!important;color:#aaa6b4!important;margin-top:18px!important}
+.group{background:#171722!important;border-color:#393446!important}
+.group-name{color:#fff!important;font-size:19px!important}
+.group-meta{color:#aaa6b4!important;font-size:13px!important}
+.group-icon{background:#24182f!important;font-size:20px!important}
+.group-head{padding:16px!important}
+.voice-bar{background:linear-gradient(110deg,#201229,#15151f)!important;border-color:#643780!important;min-height:82px!important}
+.voice-copy b{color:#fff!important;font-size:19px!important}
+.voice-copy small{color:#b7b2bf!important;font-size:14px!important}
+.mic{width:54px!important;height:54px!important;font-size:25px!important}
+.page-title{color:#fff!important;font-size:28px!important}
+.task-card{background:#171722!important;border-color:#393446!important;padding:16px!important}
+.task-title{color:#fff!important;font-size:20px!important}
+.task-meta{color:#aaa6b4!important;font-size:14px!important}
+.task-actions button{background:#24202d!important;color:#fff!important;font-size:14px!important}
+.day-chip{color:#b8b3c1!important;font-size:13px!important;border-color:#494355!important}
+.day-chip.active{background:#3a1c50!important;border-color:#a64aff!important;color:#fff!important}
+.screen{background:#0b0a11!important}
+.employee-card{background:#171722!important;border-color:#393446!important}
+.employee-name{color:#fff!important;font-size:21px!important}
+.employee-role{color:#aaa6b4!important;font-size:14px!important}
+.avatar{color:#fff!important;background:linear-gradient(135deg,#53336f,#2a3c69)!important}
+.emp-task{color:#fff!important;font-size:15px!important}
+.stat{border-color:#423c4e!important}
+.stat b{color:#fff!important}
+.stat small{color:#aaa6b4!important}
+.bottom-nav{background:#0a0910f2!important}
+.tab{color:#8e8996!important}
+.tab.active{color:#b45cff!important}
+.sheet{background:#181821!important;color:#fff!important}
+.field,.select,.action{background:#101018!important;color:#fff!important;border-color:#3d3848!important}
+.cal-day{background:#181821!important;color:#d2ced8!important}
+.cal-day.today{background:#7433aa!important;color:#fff!important}
+.notes-box{min-height:250px!important;max-height:36vh!important}
+
+/* light theme is now complete instead of mixing black cards with dark text */
+body.light{--bg:#f4f2f7;--panel:#ffffff;--text:#18151d;--muted:#6e6875;--line:#ddd7e3}
+body.light,body.light html{background:#f4f2f7!important}
+body.light .app{background:#f4f2f7!important}
+body.light .screen{background:#f4f2f7!important}
+body.light .search,body.light .icon-btn,body.light .group,body.light .task-card,body.light .employee-card,body.light .sheet{background:#fff!important;border-color:#ddd7e3!important}
+body.light .note-text,body.light .group-name,body.light .task-title,body.light .employee-name,body.light .emp-task,body.light .voice-copy b{color:#18151d!important}
+body.light .group-meta,body.light .task-meta,body.light .employee-role,body.light .voice-copy small{color:#6e6875!important}
+body.light .voice-bar{background:#fff!important;border-color:#b67ce7!important}

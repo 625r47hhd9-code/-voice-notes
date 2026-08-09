@@ -19,16 +19,117 @@ function addSection(){modal(`<h2>Новый раздел</h2><div class="form"><
 function addEmployee(){modal(`<h2>Новый сотрудник</h2><div class="form"><input id="en" class="field" placeholder="Имя"><input id="er" class="field" placeholder="Должность"><button id="ev" class="primary">Добавить</button></div>`);$("#ev").onclick=()=>{db.employees.push({id:Date.now(),name:$("#en").value||"Новый сотрудник",role:$("#er").value,tasks:[]});save();hideModal();renderAll()}}
 function modal(h){$("#modalContent").innerHTML=h;$("#modal").classList.remove("hidden")}function hideModal(){$("#modal").classList.add("hidden")}async function shareText(t){if(navigator.share)try{await navigator.share({text:t})}catch{}else{await navigator.clipboard?.writeText(t)}}
 function calendar(){let n=new Date(),y=n.getFullYear(),m=n.getMonth(),f=new Date(y,m,1),l=new Date(y,m+1,0),lead=(f.getDay()+6)%7,h=`<h2>${n.toLocaleDateString("ru-RU",{month:"long",year:"numeric"})}</h2><div class="calendar-grid">`;for(let i=0;i<lead;i++)h+="<span></span>";for(let d=1;d<=l.getDate();d++){let x=iso(new Date(y,m,d,12));h+=`<button class="cal-day ${d===n.getDate()?"today":""}" data-cal="${x}">${d}</button>`}h+="</div>";modal(h);$$("[data-cal]").forEach(b=>b.onclick=()=>{hideModal();$("#swipeStage").classList.add("show-week");renderWeekDay(b.dataset.cal)})}
-let rec=null,listening=false,buf="";function startVoice(){if(listening)return;let R=window.SpeechRecognition||window.webkitSpeechRecognition;if(!R)return $("#voiceStatus").textContent="Распознавание недоступно";rec=new R();rec.lang="ru-RU";rec.continuous=true;rec.interimResults=true;listening=true;buf="";$("#voiceBar").classList.add("listening");$("#voiceTitle").textContent="Слушаю…";$("#voiceStatus").textContent="Говорите";rec.onresult=e=>{let i="";for(let k=e.resultIndex;k<e.results.length;k++){let r=e.results[k];r.isFinal?buf+=r[0].transcript+" ":i+=r[0].transcript}$("#voiceStatus").textContent=i||buf||"Говорите"};try{rec.start()}catch{}}function stopVoice(){if(!rec)return;listening=false;try{rec.stop()}catch{};$("#voiceBar").classList.remove("listening");$("#voiceTitle").textContent="Голосовой ввод";$("#voiceStatus").textContent="Нажмите или удерживайте, чтобы диктовать";let t=buf.trim();buf="";if(t)voice(t)}
-function voice(text){let low=text.toLowerCase();if(/^(удалить|удали)$/.test(low)){let n=db.notes[0];if(n){n.text=n.text.trim().replace(/\\s+\\S+$/,"");if(!n.text)db.notes.shift()}save();return renderAll()}if(/^(сделано|выполнено|готово)/.test(low)){let n=db.notes.shift();if(n)done(n.text,"Заметки");save();return renderAll()}let e=db.employees.find(x=>low.includes(x.name.split(" ")[0].toLowerCase()));if(e){let clean=text.replace(new RegExp(e.name.split(" ")[0],"i"),"").trim(),d=/завтра/i.test(text)?plus(1):iso();e.tasks.push({text:clean||text,date:d,time:"",done:false});db.tasks.push({id:Date.now(),text:clean||text,date:d,time:"",employeeId:e.id,done:false});save();return renderAll()}if(/купить|покупк|для производства/.test(low)){db.sections[0].items.unshift(text);save();return renderAll()}db.notes.unshift({id:Date.now(),text});save();renderAll()}
+let rec=null,listening=false,buf="",interimBuf="",stopRequested=false;
+function startVoice(){
+  if(listening)return;
+  let R=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!R){$("#voiceStatus").textContent="Распознавание речи недоступно";return}
+  rec=new R();
+  rec.lang="ru-RU";
+  rec.continuous=true;
+  rec.interimResults=true;
+  buf="";interimBuf="";stopRequested=false;listening=true;
+  $("#voiceBar").classList.add("listening");
+  $("#voiceTitle").textContent="Слушаю…";
+  $("#voiceStatus").textContent="Говорите";
+  rec.onresult=e=>{
+    let interim="";
+    for(let k=e.resultIndex;k<e.results.length;k++){
+      let r=e.results[k],txt=r[0].transcript.trim();
+      if(r.isFinal){ if(txt) buf+=(buf?" ":"")+txt; }
+      else interim=txt;
+    }
+    interimBuf=interim;
+    $("#voiceStatus").textContent=interim||buf||"Говорите";
+  };
+  rec.onerror=e=>{
+    if(e.error!=="aborted") $("#voiceStatus").textContent="Ошибка: "+e.error;
+  };
+  rec.onend=()=>{
+    if(listening && !stopRequested){ try{rec.start()}catch{}; return; }
+    if(stopRequested) finalizeVoice();
+  };
+  try{rec.start()}catch{}
+}
+function stopVoice(){
+  if(!rec||!listening)return;
+  listening=false;stopRequested=true;
+  $("#voiceBar").classList.remove("listening");
+  $("#voiceTitle").textContent="Обрабатываю…";
+  $("#voiceStatus").textContent="Сохраняю текст";
+  try{rec.stop()}catch{finalizeVoice()}
+  setTimeout(()=>{ if(stopRequested) finalizeVoice(); },500);
+}
+function finalizeVoice(){
+  if(!stopRequested)return;
+  stopRequested=false;
+  let t=(buf||interimBuf||"").trim();
+  buf="";interimBuf="";
+  $("#voiceTitle").textContent="Голосовой ввод";
+  $("#voiceStatus").textContent="Нажмите или удерживайте, чтобы диктовать";
+  if(t) voice(t);
+}
+function extractDate(text){
+  let low=text.toLowerCase();
+  if(/послезавтра/.test(low))return plus(2);
+  if(/завтра/.test(low))return plus(1);
+  if(/сегодня/.test(low))return iso();
+  const months={января:0,февраля:1,марта:2,апреля:3,мая:4,июня:5,июля:6,августа:7,сентября:8,октября:9,ноября:10,декабря:11};
+  let m=low.match(/(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/);
+  if(m){let d=new Date();let y=d.getFullYear(),candidate=new Date(y,months[m[2]],+m[1],12);if(candidate<new Date(new Date().setHours(0,0,0,0)))candidate.setFullYear(y+1);return iso(candidate)}
+  return null;
+}
+function cleanCommandWords(text){
+  return text.replace(/\b(добавь|добавить|задача|поставь|поставить|напомни|напоминание|на сегодня|сегодня|на завтра|завтра|послезавтра)\b/gi,"").replace(/\s{2,}/g," ").trim();
+}
+function voice(text){
+  let low=text.toLowerCase().trim();
+
+  if(/^(удалить|удали)( последнее слово)?$/.test(low)){
+    let n=db.notes[0];
+    if(n){n.text=n.text.trim().replace(/\s+\S+$/,"");if(!n.text)db.notes.shift()}
+    save();renderAll();return;
+  }
+  if(/^(сделано|выполнено|готово)/.test(low)){
+    let n=db.notes.shift();if(n)done(n.text,"Заметки");save();renderAll();return;
+  }
+
+  let date=extractDate(text);
+  let emp=db.employees.find(x=>low.includes(x.name.split(" ")[0].toLowerCase()));
+  if(emp){
+    let clean=cleanCommandWords(text).replace(new RegExp(emp.name.split(" ")[0],"i"),"").trim()||text;
+    let d=date||iso();
+    emp.tasks.push({text:clean,date:d,time:"",done:false});
+    db.tasks.push({id:Date.now(),text:clean,date:d,time:"",employeeId:emp.id,done:false});
+    save();renderAll();return;
+  }
+
+  if(/купить|покупк|для производства/.test(low)){
+    let sec=db.sections.find(x=>x.id==="buy");
+    let clean=text.replace(/добавь|добавить|в купить для производства|купить для производства/ig,"").trim()||text;
+    sec.items.unshift(clean);
+    save();renderAll();return;
+  }
+
+  if(date){
+    let clean=cleanCommandWords(text)||text;
+    db.tasks.push({id:Date.now(),text:clean,date:date,time:"",employeeId:null,done:false});
+    save();renderAll();return;
+  }
+
+  db.notes.unshift({id:Date.now(),text:text});
+  save();renderAll();
+}
 function renderAll(){renderNotes();renderGroups();renderOverdue();renderWeek();renderEmployees()}
 for(let i=0;i<6;i++)$("#wave").appendChild(document.createElement("i"));
 $("#globalSearch").oninput=renderNotes;$("#expandNotes").onclick=()=>$("#notesBox").classList.toggle("expanded");$("#addSectionBtn").onclick=addSection;$("#addEmployeeBtn").onclick=addEmployee;$("#employeeSearch").oninput=renderEmployees;
 $("#settingsBtn").onclick=()=>modal(`<h2>Настройки</h2><button class="action">Голос: русский</button><button class="action">Аудио не сохраняется</button><button class="action">Данные: на устройстве</button>`);
-$("#calcBtn").onclick=()=>modal(`<h2>Калькулятор</h2><input class="field" placeholder="125*8">`);$("#themeBtn").onclick=()=>document.body.classList.toggle("light");$("#calendarBtn").onclick=calendar;$("#weekCalendarBtn").onclick=calendar;$("#modalClose").onclick=hideModal;
+$("#calcBtn").onclick=()=>modal(`<h2>Калькулятор</h2><input class="field" placeholder="125*8">`);$("#themeBtn").onclick=()=>{document.body.classList.toggle("light");localStorage.setItem("assistant-theme",document.body.classList.contains("light")?"light":"dark")};$("#calendarBtn").onclick=calendar;$("#weekCalendarBtn").onclick=calendar;$("#modalClose").onclick=hideModal;
 $$(".backBtn").forEach(b=>b.onclick=openHome);$$(".tab").forEach(b=>b.onclick=()=>b.dataset.tab==="home"?openHome():b.dataset.tab==="employees"?openEmployees():openNotebook());
 $("#newPageBtn").onclick=()=>{db.notebook.splice(db.page+1,0,{text:""});db.page++;save();renderNotebook()};$("#paperText").oninput=()=>{db.notebook[db.page].text=$("#paperText").value;save()};$("#sharePageBtn").onclick=()=>shareText(db.notebook[db.page].text||"Пустой лист");
 let np=0;$("#notebookPager").ontouchstart=e=>np=e.touches[0].clientX;$("#notebookPager").ontouchend=e=>{let d=e.changedTouches[0].clientX-np;if(Math.abs(d)>60){if(d<0&&db.page<db.notebook.length-1)db.page++;if(d>0&&db.page>0)db.page--;renderNotebook()}};
 $("#micBtn").onpointerdown=e=>{e.preventDefault();startVoice()};["pointerup","pointercancel"].forEach(x=>$("#micBtn").addEventListener(x,e=>{e.preventDefault();stopVoice()}));["contextmenu","selectstart"].forEach(x=>$("#micBtn").addEventListener(x,e=>e.preventDefault()));
 let sx=0;$("#swipeStage").ontouchstart=e=>{if(e.target.closest(".group,.note,.voice-bar"))return;sx=e.touches[0].clientX};$("#swipeStage").ontouchend=e=>{if(!sx)return;let d=e.changedTouches[0].clientX-sx;if(Math.abs(d)>70){$("#swipeStage").classList.remove("show-overdue","show-week");d>0?$("#swipeStage").classList.add("show-overdue"):$("#swipeStage").classList.add("show-week")}sx=0};
 renderAll();renderNotebook();if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{});
+
+if(localStorage.getItem("assistant-theme")==="light")document.body.classList.add("light");
