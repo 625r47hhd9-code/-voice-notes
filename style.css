@@ -94,3 +94,16 @@ body.light .voice-bar{background:#fff!important;border-color:#b67ce7!important}
 .voice-bar:active{transform:scale(.992)}
 .groups{padding-bottom:8px}.group-head{min-height:74px}.group-main{display:flex!important;flex-direction:column!important;min-width:0!important}.group-name{display:block!important;line-height:1.18!important;margin-bottom:5px!important}.group-meta{display:block!important;line-height:1.2!important}
 .employee-head{min-height:94px}.employee-info{display:flex!important;flex-direction:column!important;min-width:0!important}.employee-name{display:block!important;line-height:1.15!important;margin-bottom:6px!important}.employee-role{display:block!important;line-height:1.25!important}
+
+/* v7.3 — aliases + drawing notebook */
+.notebook-screen{padding-left:6px!important;padding-right:6px!important;padding-bottom:8px!important}
+.notebook-tools{display:flex;gap:6px;overflow-x:auto;padding:0 2px 7px;scrollbar-width:none}
+.notebook-tools::-webkit-scrollbar{display:none}
+.nb-tool{flex:0 0 auto;padding:8px 11px;border:1px solid var(--line);border-radius:11px;background:var(--panel);color:var(--muted);font-size:12px;font-weight:700}
+.nb-tool.active{background:#7135ad;color:#fff;border-color:#9a59cc}
+.notebook-pager{height:calc(100% - 102px)!important}
+.paper{position:relative!important;padding:10px!important;border-radius:12px!important}
+.paper textarea{position:absolute!important;inset:10px!important;width:calc(100% - 20px)!important;height:calc(100% - 20px)!important;z-index:2!important}
+#drawCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:3;pointer-events:none;touch-action:none}
+.paper.draw-mode #drawCanvas{pointer-events:auto}
+.paper.draw-mode textarea{pointer-events:none}

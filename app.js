@@ -95,7 +95,7 @@ function voice(text){
   }
 
   let date=extractDate(text);
-  let emp=db.employees.find(x=>low.includes(x.name.split(" ")[0].toLowerCase()));
+  let emp=findEmployeeByVoiceV73(text);
   if(emp){
     let clean=cleanCommandWords(text).replace(new RegExp(emp.name.split(" ")[0],"i"),"").trim()||text;
     let d=date||iso();
@@ -126,7 +126,7 @@ $("#globalSearch").oninput=renderNotes;$("#expandNotes").onclick=()=>$("#notesBo
 $("#settingsBtn").onclick=()=>modal(`<h2>Настройки</h2><button class="action">Голос: русский</button><button class="action">Аудио не сохраняется</button><button class="action">Данные: на устройстве</button>`);
 $("#calcBtn").onclick=()=>modal(`<h2>Калькулятор</h2><input class="field" placeholder="125*8">`);$("#themeBtn").onclick=()=>{document.body.classList.toggle("light");localStorage.setItem("assistant-theme",document.body.classList.contains("light")?"light":"dark")};$("#calendarBtn").onclick=calendar;$("#weekCalendarBtn").onclick=calendar;$("#modalClose").onclick=hideModal;
 $$(".backBtn").forEach(b=>b.onclick=openHome);$$(".tab").forEach(b=>b.onclick=()=>b.dataset.tab==="home"?openHome():b.dataset.tab==="employees"?openEmployees():openNotebook());
-$("#newPageBtn").onclick=()=>{db.notebook.splice(db.page+1,0,{text:""});db.page++;save();renderNotebook()};$("#paperText").oninput=()=>{db.notebook[db.page].text=$("#paperText").value;save()};$("#sharePageBtn").onclick=()=>shareText(db.notebook[db.page].text||"Пустой лист");
+$("#newPageBtn").onclick=()=>{db.notebook.splice(db.page+1,0,{text:"",drawing:""});db.page++;save();renderNotebook()};$("#paperText").oninput=()=>{db.notebook[db.page].text=$("#paperText").value;save()};$("#sharePageBtn").onclick=()=>shareText(db.notebook[db.page].text||"Пустой лист");
 let np=0;$("#notebookPager").ontouchstart=e=>np=e.touches[0].clientX;$("#notebookPager").ontouchend=e=>{let d=e.changedTouches[0].clientX-np;if(Math.abs(d)>60){if(d<0&&db.page<db.notebook.length-1)db.page++;if(d>0&&db.page>0)db.page--;renderNotebook()}};
 stopVoice()}));["contextmenu","selectstart"].forEach(x=>$("#micBtn").addEventListener(x,e=>e.preventDefault()));
 let sx=0;$("#swipeStage").ontouchstart=e=>{if(e.target.closest(".group,.note,.voice-bar"))return;sx=e.touches[0].clientX};$("#swipeStage").ontouchend=e=>{if(!sx)return;let d=e.changedTouches[0].clientX-sx;if(Math.abs(d)>70){$("#swipeStage").classList.remove("show-overdue","show-week");d>0?$("#swipeStage").classList.add("show-overdue"):$("#swipeStage").classList.add("show-week")}sx=0};
@@ -134,3 +134,60 @@ renderAll();renderNotebook();if("serviceWorker"in navigator)navigator.serviceWor
 
 if(localStorage.getItem("assistant-theme")==="light")document.body.classList.add("light");
 \n/* v7.2: whole voice tile toggles; mic remains hold-to-talk */\nconst voiceTileV72=$("#voiceBar"), micV72=$("#micBtn");\nvoiceTileV72.addEventListener("click",e=>{if(e.target.closest("#micBtn"))return;listening?stopVoice():startVoice()});\nmicV72.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();try{micV72.setPointerCapture(e.pointerId)}catch{};startVoice()});\n["pointerup","pointercancel"].forEach(ev=>micV72.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();stopVoice()}));\n[voiceTileV72,micV72].forEach(el=>["contextmenu","selectstart","dragstart"].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation()})));\n
+/* v7.3 alias recognition */
+const EMP_ALIASES_V73={
+  "Артём Мишин":["артём","артем","тёма","тема"],
+  "Алексей":["алексей","лёха","леха","лёша","леша"],
+  "Дима":["дима","дмитрий","димон","митя"]
+};
+function normV73(s){return String(s||"").toLowerCase().replace(/ё/g,"е").replace(/[.,!?;:]/g," ").replace(/\s+/g," ").trim()}
+function findEmployeeByVoiceV73(text){
+  const low=" "+normV73(text)+" ";
+  return db.employees.find(emp=>{
+    const aliases=[emp.name,...(EMP_ALIASES_V73[emp.name]||[])].map(normV73);
+    return aliases.some(a=>a && low.includes(" "+a+" "));
+  });
+}
+
+/* v7.3 notebook drawing */
+db.notebook=(db.notebook||[{text:"",drawing:""}]).map(p=>typeof p==="string"?{text:p,drawing:""}:{text:p.text||"",drawing:p.drawing||""});
+save();
+const drawCanvas=$("#drawCanvas");
+const drawCtx=drawCanvas?.getContext("2d");
+let nbDraw=false,nbErase=false,nbPainting=false,lx=0,ly=0;
+function nbResize(){
+  if(!drawCanvas)return;
+  const r=drawCanvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
+  drawCanvas.width=Math.max(1,Math.round(r.width*dpr));
+  drawCanvas.height=Math.max(1,Math.round(r.height*dpr));
+  drawCtx.setTransform(dpr,0,0,dpr,0,0);
+  drawCtx.lineCap="round";drawCtx.lineJoin="round";
+  nbLoad();
+}
+function nbLoad(){
+  if(!drawCanvas)return;
+  drawCtx.clearRect(0,0,drawCanvas.clientWidth,drawCanvas.clientHeight);
+  const src=db.notebook[db.page]?.drawing;if(!src)return;
+  const img=new Image();img.onload=()=>drawCtx.drawImage(img,0,0,drawCanvas.clientWidth,drawCanvas.clientHeight);img.src=src;
+}
+function nbSave(){if(drawCanvas){db.notebook[db.page].drawing=drawCanvas.toDataURL("image/png");save()}}
+function nbMode(draw){
+  nbDraw=draw;$("#paper")?.classList.toggle("draw-mode",draw);
+  $("#textModeBtn")?.classList.toggle("active",!draw);
+  $("#drawModeBtn")?.classList.toggle("active",draw&&!nbErase);
+}
+function nbPoint(e){const r=drawCanvas.getBoundingClientRect(),p=e.touches?.[0]||e;return{x:p.clientX-r.left,y:p.clientY-r.top}}
+function nbStart(e){if(!nbDraw)return;e.preventDefault();nbPainting=true;let p=nbPoint(e);lx=p.x;ly=p.y}
+function nbMove(e){if(!nbPainting||!nbDraw)return;e.preventDefault();let p=nbPoint(e);drawCtx.globalCompositeOperation=nbErase?"destination-out":"source-over";drawCtx.strokeStyle="#2f2d28";drawCtx.lineWidth=nbErase?24:3;drawCtx.beginPath();drawCtx.moveTo(lx,ly);drawCtx.lineTo(p.x,p.y);drawCtx.stroke();lx=p.x;ly=p.y}
+function nbEnd(){if(!nbPainting)return;nbPainting=false;nbSave()}
+$("#textModeBtn")?.addEventListener("click",()=>{nbErase=false;nbMode(false)});
+$("#drawModeBtn")?.addEventListener("click",()=>{nbErase=false;nbMode(true)});
+$("#eraserBtn")?.addEventListener("click",()=>{nbErase=!nbErase;nbMode(true);$("#eraserBtn").classList.toggle("active",nbErase)});
+$("#clearDrawBtn")?.addEventListener("click",()=>{drawCtx?.clearRect(0,0,drawCanvas.clientWidth,drawCanvas.clientHeight);db.notebook[db.page].drawing="";save()});
+["pointerdown","touchstart"].forEach(ev=>drawCanvas?.addEventListener(ev,nbStart,{passive:false}));
+["pointermove","touchmove"].forEach(ev=>drawCanvas?.addEventListener(ev,nbMove,{passive:false}));
+["pointerup","pointercancel","touchend","touchcancel"].forEach(ev=>drawCanvas?.addEventListener(ev,nbEnd,{passive:false}));
+const renderNotebookV73=renderNotebook;
+renderNotebook=function(){renderNotebookV73();requestAnimationFrame(nbResize)};
+window.addEventListener("resize",()=>requestAnimationFrame(nbResize));
+requestAnimationFrame(nbResize);

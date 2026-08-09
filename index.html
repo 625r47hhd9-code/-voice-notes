@@ -64,9 +64,15 @@
 
   <section id="notebookScreen" class="screen hidden notebook-screen">
     <div class="screen-head"><button class="backBtn">‹</button><b>Блокнот</b><div><button id="sharePageBtn">↗</button><button id="newPageBtn">＋</button></div></div>
+    <div class="notebook-tools">
+      <button id="textModeBtn" class="nb-tool active">Текст</button>
+      <button id="drawModeBtn" class="nb-tool">✎ Рисовать</button>
+      <button id="eraserBtn" class="nb-tool">⌫ Ластик</button>
+      <button id="clearDrawBtn" class="nb-tool">Очистить</button>
+    </div>
     <div id="notebookPager" class="notebook-pager">
       <div class="paper">
-        <textarea id="paperText" spellcheck="false"></textarea>
+        <textarea id="paperText" spellcheck="false"></textarea><canvas id="drawCanvas"></canvas>
         <div class="page-num" id="pageNum"></div>
       </div>
     </div>
