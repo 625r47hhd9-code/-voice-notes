@@ -5,7 +5,42 @@ let db=JSON.parse(localStorage.getItem(KEY)||"null")||{notes:[{id:1,text:"Поз
 function save(){localStorage.setItem(KEY,JSON.stringify(db))}function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}function fd(x){return x?new Date(x+"T12:00:00").toLocaleDateString("ru-RU",{day:"numeric",month:"short"}):""}
 function done(text,origin){db.completed.unshift({text,origin,at:new Date().toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})})}
 function renderNotes(){let q=$("#globalSearch").value.toLowerCase();$("#notesList").innerHTML=db.notes.filter(n=>n.text.toLowerCase().includes(q)).map(n=>`<div class="note" data-note="${n.id}"><button class="check">✓</button><div class="note-text">${esc(n.text)}</div></div>`).join("")||`<div class="task-meta">Нет заметок</div>`;$$(".note .check").forEach(b=>b.onclick=()=>{let n=db.notes.find(x=>x.id==b.closest(".note").dataset.note);done(n.text,"Заметки");db.notes=db.notes.filter(x=>x.id!==n.id);save();renderAll()})}
-function renderGroups(){let et=db.employees.reduce((s,e)=>s+e.tasks.filter(t=>!t.done).length,0),g=[{id:"employees",name:"Сотрудники",icon:"👥",meta:`${db.employees.length} сотрудников · ${et} задач`},...db.sections.map(s=>({id:s.id,name:s.name,icon:s.icon,meta:`${s.items.length} элементов`})),{id:"completed",name:"Выполненные",icon:"✓",meta:`${db.completed.length} записей`}];$("#homeGroups").innerHTML=g.map(x=>`<div class="group" data-group="${x.id}"><button class="group-head"><span class="group-icon">${x.icon}</span><span class="group-main"><span class="group-name">${esc(x.name)}</span><span class="group-meta">${esc(x.meta)}</span></span><span>›</span></button><div class="group-body"></div></div>`).join("");$$("[data-group]").forEach(el=>el.querySelector(".group-head").onclick=()=>{let id=el.dataset.group;if(id==="employees")return openEmployees();if(id==="completed")return openCompleted();let s=db.sections.find(x=>x.id===id);el.classList.toggle("open");el.querySelector(".group-body").innerHTML=s.items.map((x,i)=>`<div class="group-item"><span>${esc(x)}</span><button data-di="${id}:${i}">✓</button></div>`).join("")||`<div class="group-item">Пусто</div>`;$$("[data-di]").forEach(b=>b.onclick=e=>{e.stopPropagation();let [sid,i]=b.dataset.di.split(":"),sec=db.sections.find(x=>x.id===sid),t=sec.items.splice(+i,1)[0];done(t,sec.name);save();renderAll()})})}
+function renderGroups(){
+  let groups=[
+    ...db.sections.map(s=>({id:s.id,name:s.name,icon:s.icon,meta:`${s.items.length}`})),
+    {id:"completed",name:"Выполненные",icon:"✓",meta:`${db.completed.length}`}
+  ];
+  $("#homeGroups").innerHTML=groups.map(g=>`
+    <div class="group" data-group="${g.id}">
+      <button class="group-head">
+        <span class="group-icon">${g.icon}</span>
+        <span class="group-main">
+          <span class="group-name">${esc(g.name)}</span>
+          <span class="group-meta">${esc(g.meta)}</span>
+        </span>
+        <span class="group-chevron">›</span>
+      </button>
+      <div class="group-body"></div>
+    </div>`).join("");
+  $$("[data-group]").forEach(el=>el.querySelector(".group-head").onclick=()=>{
+    let id=el.dataset.group;
+    if(id==="completed"){openCompleted();return}
+    let s=db.sections.find(x=>x.id===id); if(!s)return;
+    el.classList.toggle("open");
+    el.querySelector(".group-body").innerHTML=s.items.map((x,i)=>`
+      <div class="group-item">
+        <span>${esc(x)}</span>
+        <button data-di="${id}:${i}">✓</button>
+      </div>`).join("")||`<div class="group-item">Пусто</div>`;
+    $$("[data-di]").forEach(b=>b.onclick=e=>{
+      e.stopPropagation();
+      let [sid,i]=b.dataset.di.split(":"),
+          sec=db.sections.find(x=>x.id===sid),
+          t=sec.items.splice(+i,1)[0];
+      done(t,sec.name);save();renderAll();
+    });
+  });
+}
 function card(t){let e=db.employees.find(x=>x.id===t.employeeId);return `<div class="task-card"><div class="task-title">${esc(t.text)}</div><div class="task-meta">${e?esc(e.name)+" · ":""}${fd(t.date)} ${esc(t.time||"")}</div><div class="task-actions"><button data-c="${t.id}">✓ Выполнено</button><button data-m="${t.id}">↻ Перенести</button></div></div>`}
 function bindTasks(){$$("[data-c]").forEach(b=>b.onclick=()=>{let t=db.tasks.find(x=>x.id==b.dataset.c);done(t.text,"План");t.done=true;save();renderAll()});$$("[data-m]").forEach(b=>b.onclick=()=>moveTask(+b.dataset.m))}
 function renderOverdue(){let a=db.tasks.filter(t=>!t.done&&t.date<iso());$("#overdueCount").textContent=`${a.length} задач`;$("#overdueList").innerHTML=a.map(card).join("")||`<div class="task-meta">Просроченных задач нет</div>`;bindTasks()}
