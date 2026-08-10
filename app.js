@@ -37,7 +37,69 @@ function renderGroups(){
       let [sid,i]=b.dataset.di.split(":"),
           sec=db.sections.find(x=>x.id===sid),
           t=sec.items.splice(+i,1)[0];
-      done(t,sec.name);save();renderAll();
+      done(t,sec.name);save();
+/* v7.7 — non-destructive data migration */
+function migrateDataV77(){
+  const defaults={
+    notes:[],
+    sections:[{id:"buy",name:"Купить для производства",icon:"🛒",items:[]}],
+    employees:[
+      {id:1,name:"Артём Мишин",role:"Мастер цеха",tasks:[]},
+      {id:2,name:"Алексей",role:"",tasks:[]},
+      {id:3,name:"Дима",role:"",tasks:[]}
+    ],
+    tasks:[],
+    completed:[],
+    notebook:[{text:"",drawing:""}],
+    page:0
+  };
+
+  if(!db || typeof db!=="object") db={};
+
+  for(const [key,value] of Object.entries(defaults)){
+    if(db[key]===undefined || db[key]===null){
+      db[key]=JSON.parse(JSON.stringify(value));
+    }
+  }
+
+  if(!Array.isArray(db.notes)) db.notes=[];
+  if(!Array.isArray(db.sections)) db.sections=[];
+  if(!Array.isArray(db.employees)) db.employees=[];
+  if(!Array.isArray(db.tasks)) db.tasks=[];
+  if(!Array.isArray(db.completed)) db.completed=[];
+  if(!Array.isArray(db.notebook)) db.notebook=[{text:"",drawing:""}];
+
+  if(!db.sections.some(s=>s.id==="buy")){
+    db.sections.unshift({id:"buy",name:"Купить для производства",icon:"🛒",items:[]});
+  }
+
+  const baseEmployees=[
+    {id:1,name:"Артём Мишин",role:"Мастер цеха"},
+    {id:2,name:"Алексей",role:""},
+    {id:3,name:"Дима",role:""}
+  ];
+  baseEmployees.forEach(base=>{
+    if(!db.employees.some(e=>String(e.name||"").toLowerCase()===base.name.toLowerCase())){
+      db.employees.push({...base,tasks:[]});
+    }
+  });
+
+  db.employees.forEach(e=>{
+    if(!Array.isArray(e.tasks)) e.tasks=[];
+  });
+
+  db.notebook=db.notebook.map(p=>{
+    if(typeof p==="string") return {text:p,drawing:""};
+    return {text:p?.text||"",drawing:p?.drawing||""};
+  });
+  if(db.notebook.length===0) db.notebook=[{text:"",drawing:""}];
+  if(!Number.isInteger(db.page) || db.page<0 || db.page>=db.notebook.length) db.page=0;
+
+  save();
+}
+migrateDataV77();
+
+renderAll();
     });
   });
 }
@@ -130,7 +192,7 @@ function voice(text){
   }
 
   let date=extractDate(text);
-  let emp=findEmployeeByVoiceV73(text);
+  let emp=employeeFromVoiceV77(text);
   if(emp){
     let clean=cleanCommandWords(text).replace(new RegExp(emp.name.split(" ")[0],"i"),"").trim()||text;
     let d=date||iso();
@@ -176,7 +238,7 @@ const EMP_ALIASES_V73={
   "Дима":["дима","дмитрий","димон","митя"]
 };
 function normV73(s){return String(s||"").toLowerCase().replace(/ё/g,"е").replace(/[.,!?;:]/g," ").replace(/\s+/g," ").trim()}
-function findEmployeeByVoiceV73(text){
+function employeeFromVoiceV77(text){
   const low=" "+normV73(text)+" ";
   return db.employees.find(emp=>{
     const aliases=[emp.name,...(EMP_ALIASES_V73[emp.name]||[])].map(normV73);
@@ -228,39 +290,214 @@ window.addEventListener("resize",()=>requestAnimationFrame(nbResize));
 requestAnimationFrame(nbResize);
 
 
-/* v7.6 — visible build + aggressive service worker update */
-const APP_VERSION="7.6";
-const versionEl=$("#versionBadge");
-if(versionEl) versionEl.textContent="v"+APP_VERSION;
+
+/* v7.7 — employee aliases and grammatical forms */
+const EMPLOYEE_ALIASES_V77 = {
+  "Артём Мишин":["артём","артем","артёму","артему","тёма","тема","тёме","теме"],
+  "Алексей":["алексей","алексею","алексея","лёха","леха","лёхе","лехе","лёшу","лешу","лёша","леша"],
+  "Дима":["дима","диме","диму","дмитрий","дмитрию","димон","димону","митя","мите"]
+};
+function normVoiceV77(s){
+  return String(s||"")
+    .toLowerCase()
+    .replace(/ё/g,"е")
+    .replace(/[.,!?;:()[\]{}"']/g," ")
+    .replace(/\s+/g," ")
+    .trim();
+}
+function employeeFromVoiceV77(text){
+  const hay=" "+normVoiceV77(text)+" ";
+  return db.employees.find(emp=>{
+    const aliases=[emp.name,...(EMPLOYEE_ALIASES_V77[emp.name]||[])].map(normVoiceV77);
+    return aliases.some(a=>a && hay.includes(" "+a+" "));
+  });
+}
+function stripEmployeeV77(text,emp){
+  let out=String(text||"");
+  const aliases=[emp.name,...(EMPLOYEE_ALIASES_V77[emp.name]||[])].sort((a,b)=>b.length-a.length);
+  aliases.forEach(a=>{
+    const escA=a.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+    out=out.replace(new RegExp("(^|\\s)"+escA+"(?=\\s|$|[,.!?;:])","ig")," ");
+  });
+  return out.replace(/\s+/g," ").trim();
+}
+
+/* v7.7 — reliable tap / hold voice controller for iPhone Safari */
+let v77Rec=null;
+let v77Listening=false;
+let v77Final="";
+let v77Interim="";
+let v77FinalizeTimer=null;
+
+function v77SetVoiceUI(state,msg){
+  const bar=$("#voiceBar"), title=$("#voiceTitle"), status=$("#voiceStatus");
+  bar?.classList.toggle("listening",state==="listening");
+  bar?.classList.toggle("processing",state==="processing");
+  if(title) title.textContent=state==="listening"?"Слушаю…":state==="processing"?"Обрабатываю…":"Голосовой ввод";
+  if(status) status.textContent=msg || (state==="listening"?"Говорите":state==="processing"?"Сохраняю текст":"Нажмите или удерживайте, чтобы диктовать");
+}
+
+function v77Commit(text){
+  const clean=String(text||"").trim();
+  if(!clean) return;
+  try{
+    voice(clean);
+  }catch(err){
+    console.error("Voice routing error",err);
+    db.notes.unshift({id:Date.now(),text:clean});
+    save();
+    renderAll();
+  }
+}
+
+function v77Finalize(){
+  clearTimeout(v77FinalizeTimer);
+  const text=(v77Final || v77Interim || "").trim();
+  v77Final=""; v77Interim="";
+  v77Listening=false;
+  v77SetVoiceUI("idle");
+  if(text) v77Commit(text);
+}
+
+function v77Start(){
+  if(v77Listening) return;
+  const R=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!R){
+    v77SetVoiceUI("idle","На этом iPhone распознавание речи недоступно");
+    return;
+  }
+
+  v77Final="";
+  v77Interim="";
+  v77Rec=new R();
+  v77Rec.lang="ru-RU";
+  v77Rec.interimResults=true;
+  v77Rec.continuous=false;
+  v77Rec.maxAlternatives=1;
+  v77Listening=true;
+  v77SetVoiceUI("listening","Говорите");
+
+  v77Rec.onresult=(e)=>{
+    let interim="";
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const txt=e.results[i][0]?.transcript?.trim()||"";
+      if(e.results[i].isFinal){
+        if(txt) v77Final+=(v77Final?" ":"")+txt;
+      }else{
+        interim=txt;
+      }
+    }
+    v77Interim=interim;
+    const status=$("#voiceStatus");
+    if(status) status.textContent=interim||v77Final||"Говорите";
+  };
+
+  v77Rec.onerror=(e)=>{
+    console.warn("Speech error:",e.error);
+    if(e.error==="not-allowed" || e.error==="service-not-allowed"){
+      v77Listening=false;
+      v77SetVoiceUI("idle","Разрешите доступ к микрофону");
+      return;
+    }
+    if(e.error==="no-speech"){
+      v77Listening=false;
+      v77SetVoiceUI("idle","Речь не услышана — нажмите ещё раз");
+      return;
+    }
+  };
+
+  v77Rec.onend=()=>{
+    if(!v77Listening){
+      v77Finalize();
+      return;
+    }
+    v77SetVoiceUI("processing");
+    v77FinalizeTimer=setTimeout(v77Finalize,250);
+  };
+
+  try{
+    v77Rec.start();
+  }catch(err){
+    console.error(err);
+    v77Listening=false;
+    v77SetVoiceUI("idle","Не удалось запустить микрофон");
+  }
+}
+
+function v77Stop(){
+  if(!v77Listening || !v77Rec) return;
+  v77SetVoiceUI("processing");
+  try{
+    v77Rec.stop();
+  }catch{
+    v77Finalize();
+  }
+  v77FinalizeTimer=setTimeout(v77Finalize,500);
+}
+
+/* Replace old handlers instead of stacking on top of them. */
+const oldVoiceBar=$("#voiceBar");
+if(oldVoiceBar){
+  const cleanBar=oldVoiceBar.cloneNode(true);
+  oldVoiceBar.replaceWith(cleanBar);
+
+  const bar=$("#voiceBar");
+  const mic=$("#micBtn");
+
+  bar.addEventListener("click",e=>{
+    if(e.target.closest("#micBtn")) return;
+    e.preventDefault();
+    v77Listening ? v77Stop() : v77Start();
+  });
+
+  mic?.addEventListener("click",e=>{
+    e.preventDefault();
+    e.stopPropagation();
+    v77Listening ? v77Stop() : v77Start();
+  });
+
+  let holdStarted=false;
+  mic?.addEventListener("pointerdown",e=>{
+    e.preventDefault();
+    e.stopPropagation();
+    holdStarted=true;
+    if(!v77Listening) v77Start();
+  });
+
+  ["pointerup","pointercancel"].forEach(ev=>{
+    mic?.addEventListener(ev,e=>{
+      if(!holdStarted) return;
+      e.preventDefault();
+      e.stopPropagation();
+      holdStarted=false;
+      if(v77Listening) v77Stop();
+    });
+  });
+
+  ["contextmenu","selectstart","dragstart"].forEach(ev=>{
+    bar.addEventListener(ev,e=>e.preventDefault());
+  });
+}
+
+/* v7.7 — visible version and update flow */
+const APP_VERSION_V77="7.7";
+const versionElV77=$("#versionBadge");
+if(versionElV77) versionElV77.textContent="v"+APP_VERSION_V77;
 
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const reg = await navigator.serviceWorker.register("./sw.js", {updateViaCache:"none"});
+      const reg=await navigator.serviceWorker.register("./sw.js",{updateViaCache:"none"});
       await reg.update();
-
-      let refreshed=false;
-      navigator.serviceWorker.addEventListener("controllerchange", ()=>{
-        if(refreshed) return;
-        refreshed=true;
+      let reloading=false;
+      navigator.serviceWorker.addEventListener("controllerchange",()=>{
+        if(reloading) return;
+        reloading=true;
         location.reload();
       });
-
-      if(reg.waiting){
-        reg.waiting.postMessage({type:"SKIP_WAITING"});
-      }
-
-      reg.addEventListener("updatefound", ()=>{
-        const worker=reg.installing;
-        if(!worker) return;
-        worker.addEventListener("statechange", ()=>{
-          if(worker.state==="installed" && navigator.serviceWorker.controller){
-            worker.postMessage({type:"SKIP_WAITING"});
-          }
-        });
-      });
+      if(reg.waiting) reg.waiting.postMessage({type:"SKIP_WAITING"});
     }catch(err){
-      console.warn("Service worker update error:", err);
+      console.warn("SW update error",err);
     }
   });
 }

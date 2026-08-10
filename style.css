@@ -224,3 +224,28 @@ body:not(.light) .version-badge{
   font-size:11px!important;
   padding:4px 7px!important;
 }
+
+/* v7.7 — reliable voice control + safer home layout */
+.version-badge{
+  right:18px!important;
+  top:calc(env(safe-area-inset-top) + 2px)!important;
+  transform:translateY(-2px);
+}
+.voice-bar{
+  cursor:pointer;
+  touch-action:manipulation!important;
+}
+.voice-bar.listening{
+  box-shadow:0 0 0 2px rgba(180,92,255,.18),0 0 26px rgba(122,61,178,.22)!important;
+}
+.voice-bar.listening .mic{
+  transform:scale(1.04);
+}
+.voice-bar.processing{
+  opacity:.88;
+}
+.voice-copy small{
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
