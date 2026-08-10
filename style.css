@@ -217,3 +217,10 @@ body:not(.light) .version-badge{
 .center-page{padding-bottom:150px!important}
 .groups{margin-bottom:16px!important}
 .voice-bar{margin-top:18px!important}
+
+/* v7.6 */
+.version-badge{
+  opacity:.96!important;
+  font-size:11px!important;
+  padding:4px 7px!important;
+}
