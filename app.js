@@ -165,7 +165,7 @@ $("#newPageBtn").onclick=()=>{db.notebook.splice(db.page+1,0,{text:"",drawing:""
 let np=0;$("#notebookPager").ontouchstart=e=>np=e.touches[0].clientX;$("#notebookPager").ontouchend=e=>{let d=e.changedTouches[0].clientX-np;if(Math.abs(d)>60){if(d<0&&db.page<db.notebook.length-1)db.page++;if(d>0&&db.page>0)db.page--;renderNotebook()}};
 stopVoice()}));["contextmenu","selectstart"].forEach(x=>$("#micBtn").addEventListener(x,e=>e.preventDefault()));
 let sx=0;$("#swipeStage").ontouchstart=e=>{if(e.target.closest(".group,.note,.voice-bar"))return;sx=e.touches[0].clientX};$("#swipeStage").ontouchend=e=>{if(!sx)return;let d=e.changedTouches[0].clientX-sx;if(Math.abs(d)>70){$("#swipeStage").classList.remove("show-overdue","show-week");d>0?$("#swipeStage").classList.add("show-overdue"):$("#swipeStage").classList.add("show-week")}sx=0};
-renderAll();renderNotebook();if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{});
+renderAll();renderNotebook();
 
 if(localStorage.getItem("assistant-theme")==="light")document.body.classList.add("light");
 \n/* v7.2: whole voice tile toggles; mic remains hold-to-talk */\nconst voiceTileV72=$("#voiceBar"), micV72=$("#micBtn");\nvoiceTileV72.addEventListener("click",e=>{if(e.target.closest("#micBtn"))return;listening?stopVoice():startVoice()});\nmicV72.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();try{micV72.setPointerCapture(e.pointerId)}catch{};startVoice()});\n["pointerup","pointercancel"].forEach(ev=>micV72.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();stopVoice()}));\n[voiceTileV72,micV72].forEach(el=>["contextmenu","selectstart","dragstart"].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation()})));\n
@@ -227,7 +227,40 @@ renderNotebook=function(){renderNotebookV73();requestAnimationFrame(nbResize)};
 window.addEventListener("resize",()=>requestAnimationFrame(nbResize));
 requestAnimationFrame(nbResize);
 
-/* v7.5 visible version marker */
-const APP_VERSION="7.5";
+
+/* v7.6 — visible build + aggressive service worker update */
+const APP_VERSION="7.6";
 const versionEl=$("#versionBadge");
 if(versionEl) versionEl.textContent="v"+APP_VERSION;
+
+if("serviceWorker" in navigator){
+  window.addEventListener("load", async ()=>{
+    try{
+      const reg = await navigator.serviceWorker.register("./sw.js", {updateViaCache:"none"});
+      await reg.update();
+
+      let refreshed=false;
+      navigator.serviceWorker.addEventListener("controllerchange", ()=>{
+        if(refreshed) return;
+        refreshed=true;
+        location.reload();
+      });
+
+      if(reg.waiting){
+        reg.waiting.postMessage({type:"SKIP_WAITING"});
+      }
+
+      reg.addEventListener("updatefound", ()=>{
+        const worker=reg.installing;
+        if(!worker) return;
+        worker.addEventListener("statechange", ()=>{
+          if(worker.state==="installed" && navigator.serviceWorker.controller){
+            worker.postMessage({type:"SKIP_WAITING"});
+          }
+        });
+      });
+    }catch(err){
+      console.warn("Service worker update error:", err);
+    }
+  });
+}
