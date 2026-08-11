@@ -171,17 +171,49 @@ function finalizeVoice(){
   if(t) voice(t);
 }
 function extractDate(text){
-  let low=text.toLowerCase();
+  let low=String(text||"").toLowerCase().replace(/ё/g,"е");
   if(/послезавтра/.test(low))return plus(2);
   if(/завтра/.test(low))return plus(1);
   if(/сегодня/.test(low))return iso();
+
+  const weekdayMap={
+    "воскресенье":0,"воскресенья":0,
+    "понедельник":1,"понедельника":1,
+    "вторник":2,"вторника":2,
+    "среда":3,"среду":3,"среды":3,
+    "четверг":4,"четверга":4,
+    "пятница":5,"пятницу":5,"пятницы":5,
+    "суббота":6,"субботу":6,"субботы":6
+  };
+  for(const [word,targetDay] of Object.entries(weekdayMap)){
+    if(new RegExp("(^|\\s)(в|на)?\\s*"+word+"(?=\\s|$|[,.!?])","i").test(low)){
+      const now=new Date();
+      const today=now.getDay();
+      let delta=(targetDay-today+7)%7;
+      // "в среду" on Wednesday means the next Wednesday, not today.
+      if(delta===0)delta=7;
+      const d=new Date(now);
+      d.setDate(now.getDate()+delta);
+      d.setHours(12,0,0,0);
+      return iso(d);
+    }
+  }
+
   const months={января:0,февраля:1,марта:2,апреля:3,мая:4,июня:5,июля:6,августа:7,сентября:8,октября:9,ноября:10,декабря:11};
   let m=low.match(/(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/);
-  if(m){let d=new Date();let y=d.getFullYear(),candidate=new Date(y,months[m[2]],+m[1],12);if(candidate<new Date(new Date().setHours(0,0,0,0)))candidate.setFullYear(y+1);return iso(candidate)}
+  if(m){
+    let d=new Date(),y=d.getFullYear(),candidate=new Date(y,months[m[2]],+m[1],12);
+    if(candidate<new Date(new Date().setHours(0,0,0,0)))candidate.setFullYear(y+1);
+    return iso(candidate);
+  }
   return null;
 }
 function cleanCommandWords(text){
-  return text.replace(/\b(добавь|добавить|задача|поставь|поставить|напомни|напоминание|на сегодня|сегодня|на завтра|завтра|послезавтра)\b/gi,"").replace(/\s{2,}/g," ").trim();
+  return String(text||"")
+    .replace(/\b(добавь|добавить|задача|поставь|поставить|напомни|напоминание|на сегодня|сегодня|на завтра|завтра|послезавтра)\b/gi,"")
+    .replace(/\b(в|на)\s+(понедельник|понедельника|вторник|вторника|среду|среда|среды|четверг|четверга|пятницу|пятница|пятницы|субботу|суббота|субботы|воскресенье|воскресенья)\b/gi,"")
+    .replace(/\s{2,}/g," ")
+    .trim();
 }
 function voice(text){
   let low=text.toLowerCase().trim();
@@ -595,7 +627,7 @@ if(oldVoiceBar){
 }
 
 /* v7.8 — visible version and update flow */
-const APP_VERSION_V77="8.2";
+const APP_VERSION_V77="8.3";
 const versionElV77=$("#versionBadge");
 if(versionElV77) versionElV77.textContent="v"+APP_VERSION_V77;
 
@@ -862,3 +894,206 @@ showOverduePage=function(){showOverduePageV82Base();v82UpdateNavButton()};
 renderAll();
 renderNotebook();
 v82UpdateNavButton();
+
+
+/* =========================
+   v8.3 fixes
+   ========================= */
+
+/* 1) Notebook gallery now previews BOTH drawing and text. */
+renderNotebookGalleryV82=function(){
+  const grid=$("#sheetGrid");
+  if(!grid)return;
+  const pages=db.notebook||[];
+  grid.innerHTML=pages.map((p,i)=>{
+    const drawing=p?.drawing||"";
+    return `
+      <button class="sheet-thumb ${i===db.page?"active":""} ${drawing?"has-drawing":""}" data-sheet="${i}">
+        ${drawing?`<img class="sheet-thumb-drawing" src="${drawing}" alt="">`:""}
+        <span class="sheet-thumb-preview">${esc((p?.text||"").slice(0,220))}</span>
+        <span class="sheet-thumb-num">${i+1}</span>
+      </button>`;
+  }).join("")+`
+    <button class="sheet-thumb sheet-thumb-add" id="galleryAddSheet">
+      <span>＋<small>Добавить лист</small></span>
+    </button>`;
+  $$("[data-sheet]").forEach(b=>b.onclick=()=>{
+    db.page=+b.dataset.sheet;
+    save();
+    v82ShowNotebookEditor();
+  });
+  $("#galleryAddSheet")?.addEventListener("click",v82AddSheet);
+};
+
+/* 2) Page zoom: +/- buttons and two-finger pinch. */
+let v83Zoom=1;
+let v83PinchStart=0;
+let v83PinchZoom=1;
+function v83ApplyZoom(next){
+  v83Zoom=Math.max(0.8,Math.min(2.6,next));
+  const paper=$("#paper");
+  if(!paper)return;
+  paper.style.transform=`scale(${v83Zoom})`;
+  paper.style.width=(100/v83Zoom)+"%";
+  paper.style.height=(100/v83Zoom)+"%";
+  let readout=$("#zoomReadout");
+  if(!readout){
+    readout=document.createElement("div");
+    readout.id="zoomReadout";
+    readout.className="zoom-readout";
+    paper.appendChild(readout);
+  }
+  readout.textContent=Math.round(v83Zoom*100)+"%";
+}
+function v83TouchDistance(touches){
+  if(touches.length<2)return 0;
+  const a=touches[0],b=touches[1];
+  return Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY);
+}
+$("#zoomInBtn")?.addEventListener("click",()=>v83ApplyZoom(v83Zoom+.2));
+$("#zoomOutBtn")?.addEventListener("click",()=>v83ApplyZoom(v83Zoom-.2));
+$("#notebookPager")?.addEventListener("touchstart",e=>{
+  if(e.touches.length===2){
+    v83PinchStart=v83TouchDistance(e.touches);
+    v83PinchZoom=v83Zoom;
+    $("#paper")?.classList.add("zooming");
+  }
+},{passive:true});
+$("#notebookPager")?.addEventListener("touchmove",e=>{
+  if(e.touches.length===2 && v83PinchStart){
+    const dist=v83TouchDistance(e.touches);
+    v83ApplyZoom(v83PinchZoom*(dist/v83PinchStart));
+  }
+},{passive:true});
+$("#notebookPager")?.addEventListener("touchend",e=>{
+  if(e.touches.length<2){
+    v83PinchStart=0;
+    $("#paper")?.classList.remove("zooming");
+  }
+},{passive:true});
+
+/* Reset zoom for each opened sheet. */
+const v83ShowEditorBase=v82ShowNotebookEditor;
+v82ShowNotebookEditor=function(){
+  v83ShowEditorBase();
+  v83Zoom=1;
+  requestAnimationFrame(()=>v83ApplyZoom(1));
+};
+
+/* 3) Voice: one reliable press-hold cycle, no synthetic click re-start.
+      Also force-stop recognition before any navigation. */
+function v83ForceStopVoice(cancelText=false){
+  clearTimeout(v77FinalizeTimer);
+  if(v77Rec){
+    try{v77Rec.onend=null;v77Rec.onerror=null;v77Rec.abort()}catch{}
+  }
+  v77Rec=null;
+  v77Listening=false;
+  if(cancelText){v77Final="";v77Interim="";}
+  const bar=$("#voiceBar");
+  bar?.classList.remove("listening","processing","voice-error");
+  const title=$("#voiceTitle"),status=$("#voiceStatus");
+  if(title)title.textContent="Голосовой ввод";
+  if(status)status.textContent="Нажмите и держите";
+}
+
+(function v83RebindMic(){
+  const old=$("#micBtn");
+  if(!old)return;
+  const mic=old.cloneNode(true);
+  old.replaceWith(mic);
+  let pressed=false;
+  let startedAt=0;
+
+  mic.addEventListener("pointerdown",e=>{
+    e.preventDefault();
+    e.stopPropagation();
+    if(pressed)return;
+    pressed=true;
+    startedAt=Date.now();
+    try{mic.setPointerCapture?.(e.pointerId)}catch{}
+    if(!v77Listening)v77Start();
+  });
+
+  const release=e=>{
+    if(!pressed)return;
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    pressed=false;
+    if(v77Listening)v77Stop();
+  };
+  mic.addEventListener("pointerup",release);
+  mic.addEventListener("pointercancel",release);
+  mic.addEventListener("lostpointercapture",release);
+  mic.addEventListener("click",e=>{e.preventDefault();e.stopPropagation()});
+})();
+
+/* Safety timeout so Safari can never leave the mic stuck indefinitely. */
+const v83StartBase=v77Start;
+v77Start=function(){
+  v83StartBase();
+  if(v77Listening){
+    setTimeout(()=>{
+      if(v77Listening){
+        try{v77Stop()}catch{v83ForceStopVoice(false)}
+      }
+    },30000);
+  }
+};
+
+/* Navigation always works, even if the microphone is currently active. */
+function v83BeforeNavigate(){
+  if(v77Listening || v77Rec)v83ForceStopVoice(true);
+}
+$("#navUndoBtn")?.addEventListener("pointerdown",()=>v83BeforeNavigate(),true);
+$("#notebookFloatBtn")?.addEventListener("pointerdown",()=>v83BeforeNavigate(),true);
+$("#nbExitBtn")?.addEventListener("pointerdown",()=>v83BeforeNavigate(),true);
+$("#weekBackBtn")?.addEventListener("pointerdown",()=>v83BeforeNavigate(),true);
+
+/* If middle button is tapped while recording, first tap means EXIT/BACK, not undo. */
+const v83NavBtn=$("#navUndoBtn");
+if(v83NavBtn){
+  const clean=v83NavBtn.cloneNode(true);
+  v83NavBtn.replaceWith(clean);
+  clean.addEventListener("click",()=>{
+    v83BeforeNavigate();
+    if(v82UndoSnapshot){
+      // Undo stays available only when the user is on the same screen.
+      v82ClearUndo();
+    }
+    if(v82NotebookVisible()){
+      if(v82GalleryOpen){v82ShowNotebookEditor();return;}
+      v82ExitNotebook();return;
+    }
+    const stage=$("#swipeStage");
+    if(stage?.classList.contains("show-week")||stage?.classList.contains("show-overdue")){
+      showCenterPage();return;
+    }
+    if(!$("#employeesScreen")?.classList.contains("hidden") || !$("#completedScreen")?.classList.contains("hidden")){
+      openHome();return;
+    }
+    openHome();
+  });
+}
+
+/* Re-attach notebook/voice state after nav button cloning. */
+v82UpdateNavButton();
+
+/* Better speech feedback for short/uncertain captures. */
+const v83CommitBase=v77Commit;
+v77Commit=function(text){
+  const clean=String(text||"").trim();
+  if(!clean){
+    v83ForceStopVoice(true);
+    return;
+  }
+  v83CommitBase(clean);
+  v83ForceStopVoice(false);
+  const bar=$("#voiceBar");
+  bar?.classList.add("show-result");
+  setTimeout(()=>bar?.classList.remove("show-result"),1800);
+};
+
+/* Version refresh */
+if($("#versionBadge"))$("#versionBadge").textContent="v8.3";
+renderNotebookGalleryV82();

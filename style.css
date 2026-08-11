@@ -669,3 +669,60 @@ body:not(.light) .notebook-tools,
 body:not(.light) .nb-head{
   background:#f7f5fa!important;
 }
+
+
+/* v8.3 — notebook previews, zoom and safer voice controls */
+.notebook-pager{
+  overflow:auto!important;
+  -webkit-overflow-scrolling:touch;
+  touch-action:pan-x pan-y;
+}
+.paper{
+  transform-origin:top left;
+  transition:transform .12s ease;
+}
+.paper.zooming{transition:none}
+#drawCanvas{will-change:transform}
+
+.sheet-thumb-preview{
+  z-index:2;
+  text-shadow:0 1px 0 rgba(255,255,255,.85);
+}
+.sheet-thumb-drawing{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:fill;
+  z-index:1;
+  opacity:.88;
+  pointer-events:none;
+}
+.sheet-thumb.has-drawing .sheet-thumb-preview{
+  background:rgba(255,255,255,.55);
+  border-radius:6px;
+  padding:4px;
+}
+.zoom-readout{
+  position:absolute;
+  right:12px;
+  top:10px;
+  z-index:6;
+  padding:4px 7px;
+  border-radius:10px;
+  background:rgba(255,255,255,.78);
+  color:#7c7185;
+  font-size:10px;
+  pointer-events:none;
+}
+
+.float-action, .compact-voice .mic{
+  touch-action:none;
+  user-select:none;
+  -webkit-user-select:none;
+  -webkit-touch-callout:none;
+}
+.compact-voice.voice-error .voice-copy{
+  opacity:1;
+  transform:none;
+}
