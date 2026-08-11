@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
   <meta name="theme-color" content="#08080d">
-  <meta name="app-version" content="8.0">
+  <meta name="app-version" content="8.1">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Ассистент">
@@ -17,7 +17,7 @@
 <div class="app">
   <header class="topbar">
     <div class="search"><span>⌕</span><input id="globalSearch" placeholder="Поиск..."></div>
-    <div id="versionBadge" class="version-badge">v8.0</div><div class="top-actions">
+    <div id="versionBadge" class="version-badge">v8.1</div><div class="top-actions">
       <button id="settingsBtn" class="icon-btn">⚙︎</button>
       <button id="calcBtn" class="icon-btn">⌘</button>
       <button id="themeBtn" class="icon-btn">◐</button>
@@ -39,6 +39,14 @@
 
       <div class="groups-title"><span>Разделы</span><button id="addSectionBtn">＋</button></div>
       <div id="homeGroups" class="groups"></div>
+    </section>
+
+    <section class="swipe-page side-page week-page">
+      <div class="page-title week-title"><button id="weekBackBtn" class="week-back" aria-label="Назад в заметки">‹</button><span>План на неделю</span><button id="weekCalendarBtn">▣</button></div>
+      <div id="weekStrip" class="week-strip"></div>
+      <div id="weekTasks" class="list"></div>
+    </section>
+  </div>
 
       <section id="voiceBar" class="voice-bar">
         <button id="micBtn" class="mic" aria-label="Голосовой ввод">🎙</button>
@@ -48,14 +56,6 @@
         </div>
         <div id="wave" class="wave"></div>
       </section>
-    </section>
-
-    <section class="swipe-page side-page week-page">
-      <div class="page-title"><span>План на неделю</span><button id="weekCalendarBtn">▣</button></div>
-      <div id="weekStrip" class="week-strip"></div>
-      <div id="weekTasks" class="list"></div>
-    </section>
-  </div>
 
   <section id="employeesScreen" class="screen hidden">
     <div class="screen-head"><button class="backBtn">‹</button><b>Сотрудники</b><button id="addEmployeeBtn">＋</button></div>

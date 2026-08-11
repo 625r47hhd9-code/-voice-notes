@@ -302,3 +302,43 @@ body:not(.light) .version-badge{
 .voice-bar .voice-copy,.voice-bar .wave{display:none!important}
 .voice-bar.listening{background:rgba(151,73,255,.34)!important;box-shadow:0 0 0 9px rgba(151,73,255,.10),0 8px 30px rgba(91,43,150,.24)!important}
 .voice-bar.processing{opacity:.72!important}
+
+
+/* v8.1 — stable floating mic + corrected swipe navigation */
+.voice-bar{
+  position:fixed!important;
+  right:max(16px,env(safe-area-inset-right))!important;
+  bottom:max(18px,env(safe-area-inset-bottom))!important;
+  left:auto!important;
+  top:auto!important;
+  transform:none!important;
+  z-index:999!important;
+  pointer-events:auto!important;
+}
+
+/* The mic now lives outside .swipe-stage, so page transforms cannot move it. */
+.swipe-stage,
+.swipe-page{
+  -webkit-transform-style:flat;
+  transform-style:flat;
+}
+
+.week-title{
+  display:grid!important;
+  grid-template-columns:36px 1fr 36px!important;
+  align-items:center!important;
+}
+.week-title>span{text-align:center}
+.week-back{
+  width:34px;
+  height:34px;
+  border-radius:10px;
+  font-size:28px;
+  line-height:1;
+  color:var(--muted);
+}
+.week-back:active{background:rgba(180,92,255,.10)}
+
+.week-page{
+  overscroll-behavior-x:contain;
+}

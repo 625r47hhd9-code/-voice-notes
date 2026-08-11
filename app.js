@@ -121,7 +121,7 @@ function renderNotebook(){$("#paperText").value=db.notebook[db.page].text;$("#pa
 function addSection(){modal(`<h2>Новый раздел</h2><div class="form"><input id="sn" class="field" placeholder="Название"><select id="si" class="select"><option>📁</option><option>💼</option><option>📦</option><option>💡</option><option>🚚</option></select><button id="ss" class="primary">Создать</button></div>`);$("#ss").onclick=()=>{db.sections.push({id:"s"+Date.now(),name:$("#sn").value||"Новый раздел",icon:$("#si").value,items:[]});save();hideModal();renderAll()}}
 function addEmployee(){modal(`<h2>Новый сотрудник</h2><div class="form"><input id="en" class="field" placeholder="Имя"><input id="er" class="field" placeholder="Должность"><button id="ev" class="primary">Добавить</button></div>`);$("#ev").onclick=()=>{db.employees.push({id:Date.now(),name:$("#en").value||"Новый сотрудник",role:$("#er").value,tasks:[]});save();hideModal();renderAll()}}
 function modal(h){$("#modalContent").innerHTML=h;$("#modal").classList.remove("hidden")}function hideModal(){$("#modal").classList.add("hidden")}async function shareText(t){if(navigator.share)try{await navigator.share({text:t})}catch{}else{await navigator.clipboard?.writeText(t)}}
-function calendar(){let n=new Date(),y=n.getFullYear(),m=n.getMonth(),f=new Date(y,m,1),l=new Date(y,m+1,0),lead=(f.getDay()+6)%7,h=`<h2>${n.toLocaleDateString("ru-RU",{month:"long",year:"numeric"})}</h2><div class="calendar-grid">`;for(let i=0;i<lead;i++)h+="<span></span>";for(let d=1;d<=l.getDate();d++){let x=iso(new Date(y,m,d,12));h+=`<button class="cal-day ${d===n.getDate()?"today":""}" data-cal="${x}">${d}</button>`}h+="</div>";modal(h);$$("[data-cal]").forEach(b=>b.onclick=()=>{hideModal();$("#swipeStage").classList.add("show-week");renderWeekDay(b.dataset.cal)})}
+function calendar(){let n=new Date(),y=n.getFullYear(),m=n.getMonth(),f=new Date(y,m,1),l=new Date(y,m+1,0),lead=(f.getDay()+6)%7,h=`<h2>${n.toLocaleDateString("ru-RU",{month:"long",year:"numeric"})}</h2><div class="calendar-grid">`;for(let i=0;i<lead;i++)h+="<span></span>";for(let d=1;d<=l.getDate();d++){let x=iso(new Date(y,m,d,12));h+=`<button class="cal-day ${d===n.getDate()?"today":""}" data-cal="${x}">${d}</button>`}h+="</div>";modal(h);$$("[data-cal]").forEach(b=>b.onclick=()=>{hideModal();$("#swipeStage").classList.remove("show-overdue");$("#swipeStage").classList.add("show-week");renderWeekDay(b.dataset.cal)})}
 let rec=null,listening=false,buf="",interimBuf="",stopRequested=false;
 function startVoice(){
   if(listening)return;
@@ -254,7 +254,87 @@ $("#calcBtn").onclick=()=>modal(`<h2>Калькулятор</h2><input class="fi
 $$(".backBtn").forEach(b=>b.onclick=openHome);$$(".tab").forEach(b=>b.onclick=()=>b.dataset.tab==="home"?openHome():b.dataset.tab==="employees"?openEmployees():openNotebook());
 $("#newPageBtn").onclick=()=>{db.notebook.splice(db.page+1,0,{text:"",drawing:""});db.page++;save();renderNotebook()};$("#paperText").oninput=()=>{db.notebook[db.page].text=$("#paperText").value;save()};$("#sharePageBtn").onclick=()=>shareText(db.notebook[db.page].text||"Пустой лист");
 let np=0;$("#notebookPager").ontouchstart=e=>np=e.touches[0].clientX;$("#notebookPager").ontouchend=e=>{let d=e.changedTouches[0].clientX-np;if(Math.abs(d)>60){if(d<0&&db.page<db.notebook.length-1)db.page++;if(d>0&&db.page>0)db.page--;renderNotebook()}};
-let sx=0;$("#swipeStage").ontouchstart=e=>{if(e.target.closest(".group,.note,.voice-bar"))return;sx=e.touches[0].clientX};$("#swipeStage").ontouchend=e=>{if(!sx)return;let d=e.changedTouches[0].clientX-sx;if(Math.abs(d)>70){$("#swipeStage").classList.remove("show-overdue","show-week");d>0?$("#swipeStage").classList.add("show-overdue"):$("#swipeStage").classList.add("show-week")}sx=0};
+/* v8.1 — state-aware horizontal navigation
+   Notes: right -> overdue, left -> week.
+   Overdue: left -> notes.
+   Week: horizontal swipe changes selected day.
+   On today's first day, one more swipe right -> notes.
+*/
+let sx=0, sy=0, selectedWeekIndex=0;
+
+function showCenterPage(){
+  $("#swipeStage").classList.remove("show-overdue","show-week");
+}
+function showOverduePage(){
+  $("#swipeStage").classList.remove("show-week");
+  $("#swipeStage").classList.add("show-overdue");
+}
+function showWeekPage(){
+  $("#swipeStage").classList.remove("show-overdue");
+  $("#swipeStage").classList.add("show-week");
+}
+function selectWeekIndex(index){
+  const chips=$$(".day-chip");
+  if(!chips.length)return;
+  selectedWeekIndex=Math.max(0,Math.min(chips.length-1,index));
+  chips.forEach((b,i)=>b.classList.toggle("active",i===selectedWeekIndex));
+  renderWeekDay(chips[selectedWeekIndex].dataset.day);
+}
+
+const renderWeekV81=renderWeek;
+renderWeek=function(){
+  renderWeekV81();
+  const chips=$$(".day-chip");
+  selectedWeekIndex=Math.max(0,Math.min(selectedWeekIndex,chips.length-1));
+  chips.forEach((b,i)=>{
+    b.classList.toggle("active",i===selectedWeekIndex);
+    b.onclick=()=>selectWeekIndex(i);
+  });
+  if(chips[selectedWeekIndex])renderWeekDay(chips[selectedWeekIndex].dataset.day);
+};
+
+$("#weekBackBtn")?.addEventListener("click",showCenterPage);
+
+$("#swipeStage").ontouchstart=e=>{
+  if(e.target.closest(".group,.note,button,input,textarea"))return;
+  sx=e.touches[0].clientX;
+  sy=e.touches[0].clientY;
+};
+
+$("#swipeStage").ontouchend=e=>{
+  if(!sx)return;
+  const dx=e.changedTouches[0].clientX-sx;
+  const dy=e.changedTouches[0].clientY-sy;
+  sx=0; sy=0;
+
+  if(Math.abs(dx)<60 || Math.abs(dx)<Math.abs(dy)*1.25)return;
+
+  const stage=$("#swipeStage");
+  const inWeek=stage.classList.contains("show-week");
+  const inOverdue=stage.classList.contains("show-overdue");
+
+  if(inWeek){
+    if(dx<0){
+      // Swipe left = next day.
+      selectWeekIndex(selectedWeekIndex+1);
+    }else{
+      // Swipe right = previous day; from today, return to Notes.
+      if(selectedWeekIndex>0)selectWeekIndex(selectedWeekIndex-1);
+      else showCenterPage();
+    }
+    return;
+  }
+
+  if(inOverdue){
+    // From overdue, swipe left returns to Notes.
+    if(dx<0)showCenterPage();
+    return;
+  }
+
+  // Main Notes page.
+  if(dx>0)showOverduePage();
+  else showWeekPage();
+};
 renderAll();renderNotebook();
 
 if(localStorage.getItem("assistant-theme")==="light")document.body.classList.add("light");
@@ -517,7 +597,7 @@ if(oldVoiceBar){
 }
 
 /* v7.8 — visible version and update flow */
-const APP_VERSION_V77="8.0";
+const APP_VERSION_V77="8.1";
 const versionElV77=$("#versionBadge");
 if(versionElV77) versionElV77.textContent="v"+APP_VERSION_V77;
 
