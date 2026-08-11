@@ -803,3 +803,53 @@ body:not(.light) .voice-live-text{color:#fff}
 
 /* Notebook pages are selected only from the gallery, never by horizontal swipe. */
 #notebookPager{touch-action:pan-x pan-y pinch-zoom!important}
+
+
+/* v8.5 — pinch-safe drawing, simple back button, command reference */
+.command-list{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  margin-top:12px;
+}
+.command-group{
+  padding:12px 14px;
+  border-radius:16px;
+  background:var(--card);
+  border:1px solid var(--line);
+}
+.command-group b{
+  display:block;
+  margin-bottom:7px;
+  font-size:15px;
+}
+.command-example{
+  display:block;
+  padding:6px 0;
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.35;
+}
+.command-example strong{color:var(--text)}
+.command-note{
+  margin-top:10px;
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.4;
+}
+
+#navUndoBtn.undo-ready{
+  background:rgba(255,255,255,.72)!important;
+  color:#6f39c6!important;
+  border-color:rgba(177,111,255,.55)!important;
+}
+body:not(.light) #navUndoBtn.undo-ready{
+  background:rgba(24,20,31,.68)!important;
+  color:#bd83ff!important;
+}
+
+#notebookFloatBtn,
+#navUndoBtn,
+#nbGalleryBtn{
+  touch-action:manipulation!important;
+}

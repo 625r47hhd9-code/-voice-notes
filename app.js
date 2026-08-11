@@ -628,7 +628,7 @@ if(oldVoiceBar){
 }
 
 /* v7.8 — visible version and update flow */
-const APP_VERSION_V77="8.4";
+const APP_VERSION_V77="8.5";
 const versionElV77=$("#versionBadge");
 if(versionElV77) versionElV77.textContent="v"+APP_VERSION_V77;
 
@@ -1351,3 +1351,220 @@ cleanCommandWords=function(text){
 
 if($("#versionBadge"))$("#versionBadge").textContent="v8.4";
 renderAll();
+
+
+/* =========================
+   v8.5 — pinch-safe notebook + no voice undo + command list
+   ========================= */
+
+/* A) Remove the "undo last voice action" mode completely.
+      Middle floating button is always contextual Back/Home. */
+v82SetUndo=function(){};
+v82ClearUndo=function(){
+  v82UndoSnapshot=null;
+  v82UndoLabel="";
+  clearTimeout(v82UndoTimer);
+  v82UpdateNavButton();
+};
+v82UndoVoice=function(){return false};
+v82UpdateNavButton=function(){
+  const b=$("#navUndoBtn");
+  if(!b)return;
+  v82UndoSnapshot=null;
+  b.classList.remove("undo-ready");
+  if(v82NotebookVisible() ||
+     $("#swipeStage")?.classList.contains("show-week") ||
+     $("#swipeStage")?.classList.contains("show-overdue") ||
+     !$("#employeesScreen")?.classList.contains("hidden") ||
+     !$("#completedScreen")?.classList.contains("hidden")){
+    b.textContent="←";
+    b.setAttribute("aria-label","Назад");
+  }else{
+    b.textContent="⌂";
+    b.setAttribute("aria-label","На главный экран");
+  }
+};
+
+/* Clean/rebind middle button, removing all old undo/voice listeners. */
+(function(){
+  const old=$("#navUndoBtn");
+  if(!old)return;
+  const btn=old.cloneNode(true);
+  old.replaceWith(btn);
+
+  btn.addEventListener("pointerdown",e=>{
+    e.stopPropagation();
+    if(v84Listening||v84Rec)v84Stop(false);
+  });
+
+  btn.addEventListener("click",e=>{
+    e.preventDefault();e.stopPropagation();
+    if(v82NotebookVisible()){
+      if(v82GalleryOpen){v82ShowNotebookEditor();v82UpdateNavButton();return;}
+      v82ExitNotebook();v82UpdateNavButton();return;
+    }
+    const stage=$("#swipeStage");
+    if(stage?.classList.contains("show-week")||stage?.classList.contains("show-overdue")){
+      showCenterPage();v82UpdateNavButton();return;
+    }
+    if(!$("#employeesScreen")?.classList.contains("hidden") ||
+       !$("#completedScreen")?.classList.contains("hidden")){
+      openHome();v82UpdateNavButton();return;
+    }
+    openHome();v82UpdateNavButton();
+  });
+})();
+
+/* Clean/rebind the floating notebook button.
+   This prevents any old pointer handlers from touching microphone state. */
+(function(){
+  const old=$("#notebookFloatBtn");
+  if(!old)return;
+  const btn=old.cloneNode(true);
+  old.replaceWith(btn);
+
+  btn.addEventListener("pointerdown",e=>{
+    e.preventDefault();
+    e.stopPropagation();
+  });
+  btn.addEventListener("click",e=>{
+    e.preventDefault();e.stopPropagation();
+    if(v84Listening||v84Rec)v84Stop(false);
+    if(v82NotebookVisible()){
+      v82GalleryOpen ? v82ShowNotebookEditor() : v82ShowNotebookGallery();
+    }else{
+      v82OpenNotebook();
+    }
+    v82UpdateNavButton();
+  });
+})();
+
+/* Header gallery button also cannot start voice accidentally. */
+(function(){
+  const old=$("#nbGalleryBtn");
+  if(!old)return;
+  const btn=old.cloneNode(true);
+  old.replaceWith(btn);
+  btn.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation()});
+  btn.addEventListener("click",e=>{
+    e.preventDefault();e.stopPropagation();
+    if(v84Listening||v84Rec)v84Stop(false);
+    v82ShowNotebookGallery();
+  });
+})();
+
+/* B) Pinch zoom must never draw.
+      Existing drawing listeners are left intact for one finger,
+      but multi-touch is intercepted before they see it. */
+let v85Pinching=false;
+let v85PinchStart=0;
+let v85PinchZoom=1;
+
+function v85TouchDistance(t){
+  if(!t || t.length<2)return 0;
+  return Math.hypot(t[1].clientX-t[0].clientX,t[1].clientY-t[0].clientY);
+}
+
+const v85Canvas=$("#drawCanvas");
+if(v85Canvas){
+  /* Stop legacy touch drawing; pointer events handle normal one-finger drawing. */
+  ["touchstart","touchmove","touchend","touchcancel"].forEach(type=>{
+    v85Canvas.addEventListener(type,e=>{
+      if(type==="touchstart" && e.touches.length>=2){
+        v85Pinching=true;
+        nbPainting=false;
+        v85PinchStart=v85TouchDistance(e.touches);
+        v85PinchZoom=v83Zoom||1;
+        $("#paper")?.classList.add("zooming");
+      }
+      if(type==="touchmove" && v85Pinching && e.touches.length>=2){
+        const dist=v85TouchDistance(e.touches);
+        if(v85PinchStart && dist)v83ApplyZoom(v85PinchZoom*(dist/v85PinchStart));
+      }
+      if((type==="touchend"||type==="touchcancel") && e.touches.length<2){
+        v85Pinching=false;
+        v85PinchStart=0;
+        nbPainting=false;
+        $("#paper")?.classList.remove("zooming");
+      }
+      /* Prevent the old touch drawing handlers, while still allowing our zoom. */
+      e.stopImmediatePropagation();
+      if(v85Pinching)e.preventDefault();
+    },{capture:true,passive:false});
+  });
+
+  /* Pointer drawing is blocked as soon as a pinch is active. */
+  ["pointerdown","pointermove","pointerup","pointercancel"].forEach(type=>{
+    v85Canvas.addEventListener(type,e=>{
+      if(v85Pinching){
+        nbPainting=false;
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      }
+    },{capture:true,passive:false});
+  });
+}
+
+/* C) Settings now contains a practical command reference. */
+$("#settingsBtn").onclick=()=>modal(`
+  <h2>Настройки</h2>
+  <div class="command-list">
+    <div class="command-group">
+      <b>Голосовой ввод</b>
+      <span class="command-example">Нажми 🎙 один раз — начать диктовку.</span>
+      <span class="command-example">Нажми 🎙 ещё раз — сохранить сказанное.</span>
+      <span class="command-example"><strong>⌫ слово</strong> — удалить последнее распознанное слово до сохранения.</span>
+    </div>
+
+    <div class="command-group">
+      <b>Заметки и даты</b>
+      <span class="command-example">«Позвонить поставщику» → обычная заметка.</span>
+      <span class="command-example">«В среду съездить на рыбалку» → задача на ближайшую среду.</span>
+      <span class="command-example">«Завтра проверить склад» → задача на завтра.</span>
+      <span class="command-example">«15 августа встретиться с клиентом» → задача на указанную дату.</span>
+    </div>
+
+    <div class="command-group">
+      <b>Сотрудники</b>
+      <span class="command-example">«Лёхе позвонить клиенту завтра» → задача Алексею.</span>
+      <span class="command-example">«Тёме проверить оборудование в пятницу» → задача Артёму.</span>
+      <span class="command-example">«Диме съездить на склад» → задача Диме.</span>
+    </div>
+
+    <div class="command-group">
+      <b>Разделы</b>
+      <span class="command-example">«Купить для производства перчатки» → добавляет покупку.</span>
+      <span class="command-example">«Сделано» / «Выполнено» → завершение текущей задачи, где команда поддерживается.</span>
+      <span class="command-example">«Перенести» → перенос задачи, где команда поддерживается.</span>
+    </div>
+
+    <div class="command-group">
+      <b>Блокнот</b>
+      <span class="command-example">Открой лист и включи 🎙 — распознанный текст записывается прямо на текущий лист.</span>
+      <span class="command-example">Рисовать — одним пальцем. Масштабировать — двумя пальцами.</span>
+    </div>
+  </div>
+  <div class="command-note">Аудиозаписи не сохраняются. Данные приложения хранятся на устройстве.</div>
+`);
+
+/* Re-state the intended mic mode after all older releases:
+   tap once = start, tap again = stop. No hold, no undo. */
+(function(){
+  const old=$("#micBtn");
+  if(!old)return;
+  const mic=old.cloneNode(true);
+  old.replaceWith(mic);
+
+  mic.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation()});
+  mic.addEventListener("click",e=>{
+    e.preventDefault();e.stopPropagation();
+    if(v84Listening)v84Stop(true);
+    else v84Start();
+  });
+  ["contextmenu","selectstart","dragstart"].forEach(ev=>
+    mic.addEventListener(ev,e=>e.preventDefault())
+  );
+})();
+
+if($("#versionBadge"))$("#versionBadge").textContent="v8.5";
+v82UpdateNavButton();
