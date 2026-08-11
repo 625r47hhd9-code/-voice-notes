@@ -249,3 +249,43 @@ body:not(.light) .version-badge{
   overflow:hidden;
   text-overflow:ellipsis;
 }
+
+
+/* v7.9 — polish without touching the working speech engine */
+
+/* Give the sticky voice tile its own reserved space so it never covers folders. */
+.center-page{
+  padding-bottom:170px!important;
+}
+.groups{
+  margin-bottom:96px!important;
+}
+.voice-bar{
+  bottom:12px!important;
+  margin-top:18px!important;
+  margin-bottom:0!important;
+}
+
+/* More Notes-like compact folder rows. */
+.group-head{
+  min-height:58px!important;
+}
+.group-name{
+  line-height:1.18!important;
+}
+.group-meta{
+  flex:0 0 auto!important;
+}
+.group-chevron{
+  flex:0 0 auto!important;
+}
+
+/* Slightly more room for long recognized phrases. */
+.voice-copy small{
+  max-width:100%!important;
+}
+
+/* Version marker should not visually collide with the calendar button. */
+.version-badge{
+  transform:translate(-3px,-3px)!important;
+}

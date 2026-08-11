@@ -340,6 +340,15 @@ function v77Commit(text){
   if(!clean) return;
   try{
     voice(clean);
+    const status=$("#voiceStatus");
+    if(status){
+      status.textContent="✓ "+clean;
+      setTimeout(()=>{
+        if(status.textContent==="✓ "+clean){
+          status.textContent="Нажмите или удерживайте, чтобы диктовать";
+        }
+      },1800);
+    }
   }catch(err){
     console.error("Voice routing error",err);
     db.notes.unshift({id:Date.now(),text:clean});
@@ -479,7 +488,7 @@ if(oldVoiceBar){
 }
 
 /* v7.8 — visible version and update flow */
-const APP_VERSION_V77="7.8";
+const APP_VERSION_V77="7.9";
 const versionElV77=$("#versionBadge");
 if(versionElV77) versionElV77.textContent="v"+APP_VERSION_V77;
 
