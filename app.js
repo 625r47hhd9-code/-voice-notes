@@ -10,8 +10,7 @@ function renderGroups(){
     ...db.sections.map(s=>({id:s.id,name:s.name,icon:s.icon,meta:`${s.items.length}`})),
     {id:"completed",name:"Выполненные",icon:"✓",meta:`${db.completed.length}`},
     {id:"employees",name:"Сотрудники",icon:"♙",meta:`${db.employees.length} сотрудника`},
-    {id:"calendar",name:"Календарь",icon:"▣",meta:"Задачи по датам"},
-    {id:"notebook",name:"Блокнот",icon:"▤",meta:"Личные заметки"}
+    {id:"calendar",name:"Календарь",icon:"▣",meta:"Задачи по датам"}
   ];
   $("#homeGroups").innerHTML=groups.map(g=>`
     <div class="group" data-group="${g.id}">
@@ -30,7 +29,6 @@ function renderGroups(){
     if(id==="completed"){openCompleted();return}
     if(id==="employees"){openEmployees();return}
     if(id==="calendar"){calendar();return}
-    if(id==="notebook"){openNotebook();return}
     let s=db.sections.find(x=>x.id===id); if(!s)return;
     el.classList.toggle("open");
     el.querySelector(".group-body").innerHTML=s.items.map((x,i)=>`
@@ -597,7 +595,7 @@ if(oldVoiceBar){
 }
 
 /* v7.8 — visible version and update flow */
-const APP_VERSION_V77="8.1";
+const APP_VERSION_V77="8.2";
 const versionElV77=$("#versionBadge");
 if(versionElV77) versionElV77.textContent="v"+APP_VERSION_V77;
 
@@ -618,3 +616,249 @@ if("serviceWorker" in navigator){
     }
   });
 }
+
+
+/* =========================
+   v8.2 notebook + floating dock
+   ========================= */
+let v82UndoSnapshot=null;
+let v82UndoLabel="";
+let v82UndoTimer=null;
+let v82GalleryOpen=false;
+
+function v82NotebookVisible(){
+  const el=$("#notebookScreen");
+  return !!el && !el.classList.contains("hidden");
+}
+function v82SetUndo(snapshot,label){
+  v82UndoSnapshot=snapshot;
+  v82UndoLabel=label||"Последняя голосовая запись";
+  clearTimeout(v82UndoTimer);
+  const b=$("#navUndoBtn");
+  if(b){
+    b.classList.add("undo-ready");
+    b.textContent="↶";
+    b.setAttribute("aria-label","Отменить последнюю голосовую запись");
+  }
+}
+function v82ClearUndo(){
+  v82UndoSnapshot=null;
+  v82UndoLabel="";
+  clearTimeout(v82UndoTimer);
+  v82UpdateNavButton();
+}
+function v82UpdateNavButton(){
+  const b=$("#navUndoBtn");
+  if(!b)return;
+  if(v82UndoSnapshot){
+    b.classList.add("undo-ready");
+    b.textContent="↶";
+    return;
+  }
+  b.classList.remove("undo-ready");
+  if(v82NotebookVisible() || $("#swipeStage")?.classList.contains("show-week") || $("#swipeStage")?.classList.contains("show-overdue")){
+    b.textContent="←";
+  }else{
+    b.textContent="⌂";
+  }
+}
+function v82UndoVoice(){
+  if(!v82UndoSnapshot)return false;
+  try{
+    db=JSON.parse(v82UndoSnapshot);
+    save();
+    migrateDataV77();
+    renderAll();
+    if(v82NotebookVisible())renderNotebook();
+    v82ClearUndo();
+    const bar=$("#voiceBar");
+    const title=$("#voiceTitle"),status=$("#voiceStatus");
+    if(title)title.textContent="Отменено";
+    if(status)status.textContent=v82UndoLabel||"Последняя запись удалена";
+    bar?.classList.add("show-result");
+    setTimeout(()=>bar?.classList.remove("show-result"),1400);
+    return true;
+  }catch(e){
+    console.error(e);
+    return false;
+  }
+}
+
+/* Notebook render/editor/gallery */
+const renderNotebookV82Base=renderNotebook;
+renderNotebook=function(){
+  if(!Array.isArray(db.notebook)||!db.notebook.length)db.notebook=[{text:"",drawing:""}];
+  if(db.page<0||db.page>=db.notebook.length)db.page=0;
+  const page=db.notebook[db.page];
+  const ta=$("#paperText");
+  if(ta)ta.value=page.text||"";
+  if($("#pageLabel"))$("#pageLabel").textContent="Лист "+(db.page+1);
+  if($("#pageNum"))$("#pageNum").textContent=`${db.page+1} / ${db.notebook.length}`;
+  renderNotebookGalleryV82();
+  requestAnimationFrame(()=>{try{nbResize()}catch{}});
+}
+function renderNotebookGalleryV82(){
+  const grid=$("#sheetGrid");
+  if(!grid)return;
+  const pages=db.notebook||[];
+  grid.innerHTML=pages.map((p,i)=>`
+    <button class="sheet-thumb ${i===db.page?"active":""}" data-sheet="${i}">
+      <span class="sheet-thumb-preview">${esc((p.text||"").slice(0,240))}</span>
+      <span class="sheet-thumb-num">${i+1}</span>
+    </button>`).join("")+`
+    <button class="sheet-thumb sheet-thumb-add" id="galleryAddSheet">
+      <span>＋<small>Добавить лист</small></span>
+    </button>`;
+  $$("[data-sheet]").forEach(b=>b.onclick=()=>{
+    db.page=+b.dataset.sheet;
+    save();
+    v82ShowNotebookEditor();
+  });
+  $("#galleryAddSheet")?.addEventListener("click",v82AddSheet);
+}
+function v82AddSheet(){
+  db.notebook.push({text:"",drawing:""});
+  db.page=db.notebook.length-1;
+  save();
+  v82ShowNotebookEditor();
+}
+function v82ShowNotebookEditor(){
+  v82GalleryOpen=false;
+  $("#notebookGallery")?.classList.add("hidden");
+  $("#notebookEditor")?.classList.remove("hidden");
+  renderNotebook();
+  v82UpdateNavButton();
+}
+function v82ShowNotebookGallery(){
+  v82GalleryOpen=true;
+  $("#notebookEditor")?.classList.add("hidden");
+  $("#notebookGallery")?.classList.remove("hidden");
+  renderNotebookGalleryV82();
+  v82UpdateNavButton();
+}
+function v82OpenNotebook(){
+  hideScreens();
+  $("#notebookScreen")?.classList.remove("hidden");
+  $("#swipeStage")?.classList.add("hidden");
+  v82ShowNotebookEditor();
+}
+function v82ExitNotebook(){
+  try{nbSave()}catch{}
+  save();
+  openHome();
+  v82GalleryOpen=false;
+  v82UpdateNavButton();
+}
+
+/* Override the old openNotebook used elsewhere. */
+openNotebook=v82OpenNotebook;
+
+$("#notebookFloatBtn")?.addEventListener("click",()=>{
+  if(v82NotebookVisible()){
+    v82GalleryOpen ? v82ShowNotebookEditor() : v82ShowNotebookGallery();
+  }else{
+    v82OpenNotebook();
+  }
+});
+$("#nbGalleryBtn")?.addEventListener("click",v82ShowNotebookGallery);
+$("#nbExitBtn")?.addEventListener("click",v82ExitNotebook);
+$("#newPageBtn")?.addEventListener("click",v82AddSheet);
+
+/* Middle button: undo the last voice action first; otherwise context-aware back/home. */
+$("#navUndoBtn")?.addEventListener("click",()=>{
+  if(v82UndoSnapshot){
+    v82UndoVoice();
+    return;
+  }
+  if(v82NotebookVisible()){
+    if(v82GalleryOpen){v82ShowNotebookEditor();return}
+    v82ExitNotebook();
+    return;
+  }
+  const stage=$("#swipeStage");
+  if(stage?.classList.contains("show-week")||stage?.classList.contains("show-overdue")){
+    showCenterPage();
+    v82UpdateNavButton();
+    return;
+  }
+  if(!$("#employeesScreen")?.classList.contains("hidden") || !$("#completedScreen")?.classList.contains("hidden")){
+    openHome();v82UpdateNavButton();return;
+  }
+  openHome();v82UpdateNavButton();
+});
+
+/* Keep drawing/text mutually usable. */
+const nbModeV82=nbMode;
+nbMode=function(draw){
+  nbModeV82(draw);
+  $("#paper")?.classList.toggle("draw-mode",draw);
+};
+$("#paperText")?.addEventListener("input",()=>{
+  db.notebook[db.page].text=$("#paperText").value;
+  save();
+});
+
+/* Voice commit:
+   - in Notebook => append directly to current sheet;
+   - elsewhere => keep the existing routing logic;
+   - snapshot before both, so middle button can undo a mistaken voice command.
+*/
+v77Commit=function(text){
+  const clean=String(text||"").trim();
+  if(!clean)return;
+  const snapshot=JSON.stringify(db);
+
+  try{
+    if(v82NotebookVisible() && !v82GalleryOpen){
+      const page=db.notebook[db.page]||(db.notebook[db.page]={text:"",drawing:""});
+      const before=String(page.text||"");
+      page.text=before+(before && !before.endsWith("\n") ? "\n" : "")+clean;
+      save();
+      renderNotebook();
+      v82SetUndo(snapshot,"Голосовой текст удалён");
+    }else{
+      voice(clean);
+      v82SetUndo(snapshot,"Голосовая команда отменена");
+    }
+
+    const bar=$("#voiceBar");
+    const title=$("#voiceTitle"),status=$("#voiceStatus");
+    if(title)title.textContent="Записано";
+    if(status)status.textContent=clean;
+    bar?.classList.add("show-result");
+    setTimeout(()=>{
+      bar?.classList.remove("show-result");
+      if(title)title.textContent="Голосовой ввод";
+      if(status)status.textContent="Нажмите или удерживайте";
+    },1800);
+  }catch(err){
+    console.error("Voice routing error",err);
+    db.notes.unshift({id:Date.now(),text:clean});
+    save();
+    renderAll();
+    v82SetUndo(snapshot,"Голосовая запись удалена");
+  }
+};
+
+/* Compact notes are independently scrollable; don't start screen swipes there. */
+$("#notesBox")?.addEventListener("touchstart",e=>{
+  e.stopPropagation();
+},{passive:true});
+
+/* Ensure middle button reflects page transitions. */
+const openHomeV82Base=openHome;
+openHome=function(){
+  openHomeV82Base();
+  $("#swipeStage")?.classList.remove("hidden");
+  v82UpdateNavButton();
+};
+const showCenterPageV82Base=showCenterPage;
+showCenterPage=function(){showCenterPageV82Base();v82UpdateNavButton()};
+const showWeekPageV82Base=showWeekPage;
+showWeekPage=function(){showWeekPageV82Base();v82UpdateNavButton()};
+const showOverduePageV82Base=showOverduePage;
+showOverduePage=function(){showOverduePageV82Base();v82UpdateNavButton()};
+
+renderAll();
+renderNotebook();
+v82UpdateNavButton();

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
   <meta name="theme-color" content="#08080d">
-  <meta name="app-version" content="8.1">
+  <meta name="app-version" content="8.2">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Ассистент">
@@ -17,7 +17,7 @@
 <div class="app">
   <header class="topbar">
     <div class="search"><span>⌕</span><input id="globalSearch" placeholder="Поиск..."></div>
-    <div id="versionBadge" class="version-badge">v8.1</div><div class="top-actions">
+    <div id="versionBadge" class="version-badge">v8.2</div><div class="top-actions">
       <button id="settingsBtn" class="icon-btn">⚙︎</button>
       <button id="calcBtn" class="icon-btn">⌘</button>
       <button id="themeBtn" class="icon-btn">◐</button>
@@ -48,34 +48,58 @@
     </section>
   </div>
 
-      <section id="voiceBar" class="voice-bar">
-        <button id="micBtn" class="mic" aria-label="Голосовой ввод">🎙</button>
-        <div class="voice-copy">
-          <b id="voiceTitle">Голосовой ввод</b>
-          <small id="voiceStatus">Нажмите или удерживайте, чтобы диктовать</small>
-        </div>
-        <div id="wave" class="wave"></div>
-      </section>
+  <aside id="floatingDock" class="floating-dock" aria-label="Быстрые действия">
+    <button id="notebookFloatBtn" class="float-action float-notebook" aria-label="Блокнот">▤</button>
+    <button id="navUndoBtn" class="float-action float-nav" aria-label="Назад или отменить">←</button>
+    <section id="voiceBar" class="voice-bar compact-voice">
+      <button id="micBtn" class="mic" aria-label="Голосовой ввод">🎙</button>
+      <div class="voice-copy">
+        <b id="voiceTitle">Голосовой ввод</b>
+        <small id="voiceStatus">Нажмите или удерживайте</small>
+      </div>
+      <div id="wave" class="wave"></div>
+    </section>
+  </aside>
 
-  <section id="employeesScreen" class="screen hidden">
+<section id="employeesScreen" class="screen hidden">
     <div class="screen-head"><button class="backBtn">‹</button><b>Сотрудники</b><button id="addEmployeeBtn">＋</button></div>
     <div class="search compact"><span>⌕</span><input id="employeeSearch" placeholder="Найти сотрудника..."></div>
     <div id="employeesList" class="employees-list"></div>
   </section>
 
   <section id="notebookScreen" class="screen hidden notebook-screen">
-    <div class="screen-head"><button class="backBtn">‹</button><b>Блокнот</b><div><button id="sharePageBtn">↗</button><button id="newPageBtn">＋</button></div></div>
-    <div class="notebook-tools">
-      <button id="textModeBtn" class="nb-tool active">Текст</button>
-      <button id="drawModeBtn" class="nb-tool">✎ Рисовать</button>
-      <button id="eraserBtn" class="nb-tool">⌫ Ластик</button>
-      <button id="clearDrawBtn" class="nb-tool">Очистить</button>
-    </div>
-    <div id="notebookPager" class="notebook-pager">
-      <div class="paper">
-        <textarea id="paperText" spellcheck="false"></textarea><canvas id="drawCanvas"></canvas>
-        <div class="page-num" id="pageNum"></div>
+    <div class="nb-head">
+      <button id="nbExitBtn" class="nb-head-btn">‹</button>
+      <b>Блокнот</b>
+      <div class="nb-head-actions">
+        <button id="sharePageBtn" class="nb-head-btn">↗</button>
+        <button id="nbGalleryBtn" class="nb-head-btn">▦</button>
       </div>
+    </div>
+
+    <div id="notebookEditor" class="notebook-editor">
+      <div class="notebook-tools">
+        <button id="textModeBtn" class="nb-tool active">Текст</button>
+        <button id="drawModeBtn" class="nb-tool">✎</button>
+        <button id="eraserBtn" class="nb-tool">⌫</button>
+        <button id="clearDrawBtn" class="nb-tool">Очистить</button>
+      </div>
+      <div id="notebookPager" class="notebook-pager">
+        <div class="paper" id="paper">
+          <div class="page-label" id="pageLabel">Лист 1</div>
+          <textarea id="paperText" spellcheck="false" placeholder=""></textarea>
+          <canvas id="drawCanvas"></canvas>
+          <div class="page-num" id="pageNum"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="notebookGallery" class="notebook-gallery hidden">
+      <div class="gallery-head">
+        <b>Листы</b>
+        <button id="newPageBtn" class="gallery-add">＋ Новый лист</button>
+      </div>
+      <div id="sheetGrid" class="sheet-grid"></div>
     </div>
   </section>
 
