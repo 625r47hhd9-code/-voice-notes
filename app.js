@@ -8,7 +8,10 @@ function renderNotes(){let q=$("#globalSearch").value.toLowerCase();$("#notesLis
 function renderGroups(){
   let groups=[
     ...db.sections.map(s=>({id:s.id,name:s.name,icon:s.icon,meta:`${s.items.length}`})),
-    {id:"completed",name:"Выполненные",icon:"✓",meta:`${db.completed.length}`}
+    {id:"completed",name:"Выполненные",icon:"✓",meta:`${db.completed.length}`},
+    {id:"employees",name:"Сотрудники",icon:"♙",meta:`${db.employees.length} сотрудника`},
+    {id:"calendar",name:"Календарь",icon:"▣",meta:"Задачи по датам"},
+    {id:"notebook",name:"Блокнот",icon:"▤",meta:"Личные заметки"}
   ];
   $("#homeGroups").innerHTML=groups.map(g=>`
     <div class="group" data-group="${g.id}">
@@ -25,6 +28,9 @@ function renderGroups(){
   $$("[data-group]").forEach(el=>el.querySelector(".group-head").onclick=()=>{
     let id=el.dataset.group;
     if(id==="completed"){openCompleted();return}
+    if(id==="employees"){openEmployees();return}
+    if(id==="calendar"){calendar();return}
+    if(id==="notebook"){openNotebook();return}
     let s=db.sections.find(x=>x.id===id); if(!s)return;
     el.classList.toggle("open");
     el.querySelector(".group-body").innerHTML=s.items.map((x,i)=>`
@@ -181,6 +187,29 @@ function cleanCommandWords(text){
 }
 function voice(text){
   let low=text.toLowerCase().trim();
+
+  // v8.0: voice navigation and stronger commands
+  if(/^(открой|покажи|перейди в)?\s*сотрудник/.test(low)){openEmployees();return;}
+  if(/^(открой|покажи|перейди в)?\s*блокнот/.test(low)){openNotebook();return;}
+  if(/^(открой|покажи)?\s*календар/.test(low)){calendar();return;}
+  if(/^(открой|покажи)?\s*выполненн/.test(low)){openCompleted();return;}
+  if(/^(домой|главная|открой заметки)$/.test(low)){openHome();return;}
+
+  if(/^(сделано|выполнено|готово)\s+/.test(low)){
+    const q=low.replace(/^(сделано|выполнено|готово)\s+/,"").trim();
+    let i=db.notes.findIndex(n=>n.text.toLowerCase().includes(q));
+    if(i>=0){let n=db.notes.splice(i,1)[0];done(n.text,"Заметки");save();renderAll();return;}
+    let t=db.tasks.find(x=>!x.done&&x.text.toLowerCase().includes(q));
+    if(t){t.done=true;done(t.text,"План");save();renderAll();return;}
+  }
+
+  if(/^перенести/.test(low)){
+    let date=extractDate(text);
+    let q=cleanCommandWords(text.replace(/^перенести\s*/i,"")).replace(/\b(на|в)\b/gi," ").trim();
+    let candidates=db.tasks.filter(x=>!x.done);
+    let t=q?candidates.find(x=>q.split(/\s+/).some(w=>w.length>3&&x.text.toLowerCase().includes(w.toLowerCase()))):candidates[0];
+    if(t&&date){t.date=date;save();renderAll();return;}
+  }
 
   if(/^(удалить|удали)( последнее слово)?$/.test(low)){
     let n=db.notes[0];
@@ -488,7 +517,7 @@ if(oldVoiceBar){
 }
 
 /* v7.8 — visible version and update flow */
-const APP_VERSION_V77="7.9";
+const APP_VERSION_V77="8.0";
 const versionElV77=$("#versionBadge");
 if(versionElV77) versionElV77.textContent="v"+APP_VERSION_V77;
 

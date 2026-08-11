@@ -289,3 +289,16 @@ body:not(.light) .version-badge{
 .version-badge{
   transform:translate(-3px,-3px)!important;
 }
+
+
+/* v8.0 — floating voice control, no bottom menu */
+.bottom-nav{display:none!important}
+.swipe-stage{bottom:0!important}
+.screen{bottom:0!important}
+.center-page{padding-bottom:110px!important}
+.groups{margin-bottom:90px!important}
+.voice-bar{position:fixed!important;left:auto!important;right:max(18px,env(safe-area-inset-right))!important;bottom:max(22px,env(safe-area-inset-bottom))!important;width:58px!important;height:58px!important;min-height:58px!important;margin:0!important;padding:0!important;border-radius:50%!important;display:grid!important;place-items:center!important;background:rgba(126,70,230,.20)!important;border:1px solid rgba(166,102,255,.42)!important;box-shadow:0 8px 28px rgba(91,43,150,.18)!important;backdrop-filter:blur(16px)!important;-webkit-backdrop-filter:blur(16px)!important;z-index:120!important}
+.voice-bar .mic{width:58px!important;height:58px!important;border-radius:50%!important;background:transparent!important;font-size:27px!important}
+.voice-bar .voice-copy,.voice-bar .wave{display:none!important}
+.voice-bar.listening{background:rgba(151,73,255,.34)!important;box-shadow:0 0 0 9px rgba(151,73,255,.10),0 8px 30px rgba(91,43,150,.24)!important}
+.voice-bar.processing{opacity:.72!important}
