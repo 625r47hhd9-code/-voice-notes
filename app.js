@@ -194,7 +194,7 @@ function voice(text){
   let date=extractDate(text);
   let emp=employeeFromVoiceV77(text);
   if(emp){
-    let clean=cleanCommandWords(text).replace(new RegExp(emp.name.split(" ")[0],"i"),"").trim()||text;
+    let clean=cleanCommandWords(stripEmployeeV77(text,emp)).trim()||text;
     let d=date||iso();
     emp.tasks.push({text:clean,date:d,time:"",done:false});
     db.tasks.push({id:Date.now(),text:clean,date:d,time:"",employeeId:emp.id,done:false});
@@ -225,12 +225,10 @@ $("#calcBtn").onclick=()=>modal(`<h2>Калькулятор</h2><input class="fi
 $$(".backBtn").forEach(b=>b.onclick=openHome);$$(".tab").forEach(b=>b.onclick=()=>b.dataset.tab==="home"?openHome():b.dataset.tab==="employees"?openEmployees():openNotebook());
 $("#newPageBtn").onclick=()=>{db.notebook.splice(db.page+1,0,{text:"",drawing:""});db.page++;save();renderNotebook()};$("#paperText").oninput=()=>{db.notebook[db.page].text=$("#paperText").value;save()};$("#sharePageBtn").onclick=()=>shareText(db.notebook[db.page].text||"Пустой лист");
 let np=0;$("#notebookPager").ontouchstart=e=>np=e.touches[0].clientX;$("#notebookPager").ontouchend=e=>{let d=e.changedTouches[0].clientX-np;if(Math.abs(d)>60){if(d<0&&db.page<db.notebook.length-1)db.page++;if(d>0&&db.page>0)db.page--;renderNotebook()}};
-stopVoice()}));["contextmenu","selectstart"].forEach(x=>$("#micBtn").addEventListener(x,e=>e.preventDefault()));
 let sx=0;$("#swipeStage").ontouchstart=e=>{if(e.target.closest(".group,.note,.voice-bar"))return;sx=e.touches[0].clientX};$("#swipeStage").ontouchend=e=>{if(!sx)return;let d=e.changedTouches[0].clientX-sx;if(Math.abs(d)>70){$("#swipeStage").classList.remove("show-overdue","show-week");d>0?$("#swipeStage").classList.add("show-overdue"):$("#swipeStage").classList.add("show-week")}sx=0};
 renderAll();renderNotebook();
 
 if(localStorage.getItem("assistant-theme")==="light")document.body.classList.add("light");
-\n/* v7.2: whole voice tile toggles; mic remains hold-to-talk */\nconst voiceTileV72=$("#voiceBar"), micV72=$("#micBtn");\nvoiceTileV72.addEventListener("click",e=>{if(e.target.closest("#micBtn"))return;listening?stopVoice():startVoice()});\nmicV72.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();try{micV72.setPointerCapture(e.pointerId)}catch{};startVoice()});\n["pointerup","pointercancel"].forEach(ev=>micV72.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();stopVoice()}));\n[voiceTileV72,micV72].forEach(el=>["contextmenu","selectstart","dragstart"].forEach(ev=>el.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation()})));\n
 /* v7.3 alias recognition */
 const EMP_ALIASES_V73={
   "Артём Мишин":["артём","артем","тёма","тема"],
@@ -322,7 +320,7 @@ function stripEmployeeV77(text,emp){
   return out.replace(/\s+/g," ").trim();
 }
 
-/* v7.7 — reliable tap / hold voice controller for iPhone Safari */
+/* v7.8 — reliable tap / hold voice controller for iPhone Safari */
 let v77Rec=null;
 let v77Listening=false;
 let v77Final="";
@@ -394,15 +392,16 @@ function v77Start(){
 
   v77Rec.onerror=(e)=>{
     console.warn("Speech error:",e.error);
+    v77Listening=false;
+    clearTimeout(v77FinalizeTimer);
     if(e.error==="not-allowed" || e.error==="service-not-allowed"){
-      v77Listening=false;
-      v77SetVoiceUI("idle","Разрешите доступ к микрофону");
-      return;
-    }
-    if(e.error==="no-speech"){
-      v77Listening=false;
+      v77SetVoiceUI("idle","Разрешите микрофон для этого сайта");
+    }else if(e.error==="no-speech"){
       v77SetVoiceUI("idle","Речь не услышана — нажмите ещё раз");
-      return;
+    }else if(e.error==="audio-capture"){
+      v77SetVoiceUI("idle","Микрофон недоступен");
+    }else{
+      v77SetVoiceUI("idle","Ошибка голосового ввода: "+e.error);
     }
   };
 
@@ -479,8 +478,8 @@ if(oldVoiceBar){
   });
 }
 
-/* v7.7 — visible version and update flow */
-const APP_VERSION_V77="7.7";
+/* v7.8 — visible version and update flow */
+const APP_VERSION_V77="7.8";
 const versionElV77=$("#versionBadge");
 if(versionElV77) versionElV77.textContent="v"+APP_VERSION_V77;
 
