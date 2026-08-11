@@ -212,6 +212,7 @@ function cleanCommandWords(text){
   return String(text||"")
     .replace(/\b(добавь|добавить|задача|поставь|поставить|напомни|напоминание|на сегодня|сегодня|на завтра|завтра|послезавтра)\b/gi,"")
     .replace(/\b(в|на)\s+(понедельник|понедельника|вторник|вторника|среду|среда|среды|четверг|четверга|пятницу|пятница|пятницы|субботу|суббота|субботы|воскресенье|воскресенья)\b/gi,"")
+    .replace(/\b(на\s+)?\d{1,2}\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\b/gi,"")
     .replace(/\s{2,}/g," ")
     .trim();
 }
@@ -627,7 +628,7 @@ if(oldVoiceBar){
 }
 
 /* v7.8 — visible version and update flow */
-const APP_VERSION_V77="8.3";
+const APP_VERSION_V77="8.4";
 const versionElV77=$("#versionBadge");
 if(versionElV77) versionElV77.textContent="v"+APP_VERSION_V77;
 
@@ -1097,3 +1098,256 @@ v77Commit=function(text){
 /* Version refresh */
 if($("#versionBadge"))$("#versionBadge").textContent="v8.3";
 renderNotebookGalleryV82();
+
+
+/* =========================
+   v8.4 — toggle dictation + live text + exact planner date
+   ========================= */
+
+/* Notebook pages no longer change on horizontal swipe. */
+if($("#notebookPager")){
+  $("#notebookPager").ontouchstart=null;
+  $("#notebookPager").ontouchend=null;
+}
+
+/* Live recognition panel. */
+(function(){
+  if($("#voiceLivePanel"))return;
+  const panel=document.createElement("div");
+  panel.id="voiceLivePanel";
+  panel.className="voice-live-panel";
+  panel.innerHTML=`
+    <div class="voice-live-title">
+      <span id="voiceLiveState">Слушаю…</span>
+      <button id="voiceDeleteWord" class="voice-delete-word">⌫ слово</button>
+    </div>
+    <div id="voiceLiveText" class="voice-live-text">Говорите…</div>`;
+  document.body.appendChild(panel);
+})();
+
+let v84Rec=null;
+let v84Listening=false;
+let v84Stopping=false;
+let v84Final="";
+let v84Interim="";
+let v84RestartTimer=null;
+
+function v84Text(){
+  return (v84Final+(v84Final&&v84Interim?" ":"")+v84Interim).trim();
+}
+function v84UpdateLive(){
+  const panel=$("#voiceLivePanel"), live=$("#voiceLiveText"), state=$("#voiceLiveState");
+  panel?.classList.toggle("open",v84Listening||v84Stopping);
+  if(live)live.textContent=v84Text()||"Говорите…";
+  if(state)state.textContent=v84Stopping?"Завершаю…":"Слушаю…";
+  const status=$("#voiceStatus");
+  if(status)status.textContent=v84Text()||"Говорите…";
+}
+function v84DeleteLastWord(){
+  if(v84Interim.trim()){
+    v84Interim=v84Interim.trim().replace(/\s+\S+$/,"");
+    if(!/\s/.test(v84Interim))v84Interim="";
+  }else{
+    v84Final=v84Final.trim().replace(/\s+\S+$/,"");
+    if(!/\s/.test(v84Final))v84Final="";
+  }
+  v84UpdateLive();
+}
+$("#voiceDeleteWord")?.addEventListener("click",e=>{
+  e.preventDefault();e.stopPropagation();v84DeleteLastWord();
+});
+
+function v84ResetUI(){
+  clearTimeout(v84RestartTimer);
+  v84Listening=false;v84Stopping=false;
+  v77Listening=false;v77Rec=null;
+  const bar=$("#voiceBar");
+  bar?.classList.remove("listening","processing");
+  $("#voiceLivePanel")?.classList.remove("open");
+  if($("#voiceTitle"))$("#voiceTitle").textContent="Голосовой ввод";
+  if($("#voiceStatus"))$("#voiceStatus").textContent="Нажмите для записи";
+}
+function v84CommitAndReset(){
+  const text=v84Text();
+  v84Final="";v84Interim="";
+  v84ResetUI();
+  if(text)v77Commit(text);
+}
+function v84StartRecognition(){
+  const R=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!R){
+    if($("#voiceStatus"))$("#voiceStatus").textContent="Распознавание речи недоступно";
+    return;
+  }
+  clearTimeout(v84RestartTimer);
+  v84Rec=new R();
+  v77Rec=v84Rec;
+  v84Rec.lang="ru-RU";
+  v84Rec.interimResults=true;
+  v84Rec.continuous=true;
+  v84Rec.maxAlternatives=1;
+
+  v84Rec.onresult=e=>{
+    let interim="";
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const txt=e.results[i][0]?.transcript?.trim()||"";
+      if(e.results[i].isFinal){
+        if(txt)v84Final+=(v84Final?" ":"")+txt;
+      }else{
+        interim=txt;
+      }
+    }
+    v84Interim=interim;
+    v84UpdateLive();
+  };
+  v84Rec.onerror=e=>{
+    if(e.error==="aborted")return;
+    if(e.error==="not-allowed"||e.error==="service-not-allowed"){
+      v84ResetUI();
+      if($("#voiceStatus"))$("#voiceStatus").textContent="Разрешите микрофон";
+      return;
+    }
+    if(e.error==="audio-capture"){
+      v84ResetUI();
+      if($("#voiceStatus"))$("#voiceStatus").textContent="Микрофон недоступен";
+      return;
+    }
+    /* no-speech is normal during a long toggle session: restart. */
+  };
+  v84Rec.onend=()=>{
+    if(v84Stopping){
+      v84CommitAndReset();
+      return;
+    }
+    if(v84Listening){
+      v84RestartTimer=setTimeout(()=>{
+        if(v84Listening&&!v84Stopping){
+          try{v84StartRecognition()}catch{}
+        }
+      },120);
+    }
+  };
+  try{v84Rec.start()}catch{
+    v84RestartTimer=setTimeout(()=>{if(v84Listening)v84StartRecognition()},180);
+  }
+}
+function v84Start(){
+  if(v84Listening)return;
+  v84Final="";v84Interim="";v84Stopping=false;v84Listening=true;
+  v77Listening=true;
+  $("#voiceBar")?.classList.add("listening");
+  if($("#voiceTitle"))$("#voiceTitle").textContent="Слушаю…";
+  v84UpdateLive();
+  v84StartRecognition();
+}
+function v84Stop(commit=true){
+  if(!v84Listening&&!v84Rec){v84ResetUI();return}
+  v84Stopping=true;v84Listening=false;v77Listening=false;
+  clearTimeout(v84RestartTimer);
+  v84UpdateLive();
+  if(!commit){v84Final="";v84Interim=""}
+  if(v84Rec){
+    try{
+      v84Rec.onend=()=>commit?v84CommitAndReset():v84ResetUI();
+      commit?v84Rec.stop():v84Rec.abort();
+    }catch{
+      commit?v84CommitAndReset():v84ResetUI();
+    }
+  }else{
+    commit?v84CommitAndReset():v84ResetUI();
+  }
+  setTimeout(()=>{if(v84Stopping)(commit?v84CommitAndReset():v84ResetUI())},700);
+}
+
+/* Replace microphone with simple tap-to-start / tap-to-stop. */
+(function(){
+  const old=$("#micBtn"); if(!old)return;
+  const mic=old.cloneNode(true);
+  old.replaceWith(mic);
+  mic.addEventListener("click",e=>{
+    e.preventDefault();e.stopPropagation();
+    v84Listening?v84Stop(true):v84Start();
+  });
+  ["pointerdown","pointerup","pointercancel","contextmenu","selectstart"].forEach(ev=>{
+    mic.addEventListener(ev,e=>{ if(ev!=="pointerup")e.preventDefault(); });
+  });
+})();
+
+/* Any navigation cancels an active unfinished dictation, never locks the UI. */
+v83BeforeNavigate=function(){
+  if(v84Listening||v84Rec)v84Stop(false);
+  else if(v77Listening||v77Rec)v83ForceStopVoice(true);
+};
+
+/* Exact selected date in planner.
+   Calendar selection becomes the first/active day of the 7-day strip. */
+let v84PlannerAnchor=iso();
+
+function v84RenderWeekFrom(anchor,selected=anchor){
+  const s=$("#weekStrip"); if(!s)return;
+  const start=new Date(anchor+"T12:00:00");
+  s.innerHTML="";
+  let chosenIndex=0;
+  for(let i=0;i<7;i++){
+    const d=new Date(start);d.setDate(start.getDate()+i);
+    const x=iso(d);
+    if(x===selected)chosenIndex=i;
+    s.insertAdjacentHTML("beforeend",
+      `<button class="day-chip ${x===selected?"active":""}" data-day="${x}">${d.toLocaleDateString("ru-RU",{weekday:"short",day:"numeric"})}</button>`);
+  }
+  selectedWeekIndex=chosenIndex;
+  renderWeekDay(selected);
+  $$(".day-chip").forEach((b,i)=>b.onclick=()=>{
+    selectedWeekIndex=i;
+    $$(".day-chip").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+    renderWeekDay(b.dataset.day);
+  });
+}
+renderWeek=function(){
+  v84RenderWeekFrom(v84PlannerAnchor,v84PlannerAnchor);
+};
+selectWeekIndex=function(index){
+  const chips=$$(".day-chip");if(!chips.length)return;
+  selectedWeekIndex=Math.max(0,Math.min(chips.length-1,index));
+  chips.forEach((b,i)=>b.classList.toggle("active",i===selectedWeekIndex));
+  renderWeekDay(chips[selectedWeekIndex].dataset.day);
+};
+
+calendar=function(){
+  const n=new Date(),y=n.getFullYear(),m=n.getMonth(),
+    f=new Date(y,m,1),l=new Date(y,m+1,0),lead=(f.getDay()+6)%7;
+  let h=`<h2>${n.toLocaleDateString("ru-RU",{month:"long",year:"numeric"})}</h2><div class="calendar-grid">`;
+  for(let i=0;i<lead;i++)h+="<span></span>";
+  for(let d=1;d<=l.getDate();d++){
+    const x=iso(new Date(y,m,d,12));
+    h+=`<button class="cal-day ${d===n.getDate()?"today":""}" data-cal="${x}">${d}</button>`;
+  }
+  h+="</div>";modal(h);
+  $$("[data-cal]").forEach(b=>b.onclick=()=>{
+    const selected=b.dataset.cal;
+    hideModal();
+    v84PlannerAnchor=selected;
+    $("#swipeStage").classList.remove("show-overdue");
+    $("#swipeStage").classList.add("show-week");
+    v84RenderWeekFrom(selected,selected);
+    v82UpdateNavButton?.();
+  });
+};
+
+/* Rebind calendar buttons because previous onclick properties point at the old function. */
+if($("#calendarBtn"))$("#calendarBtn").onclick=()=>calendar();
+if($("#weekCalendarBtn"))$("#weekCalendarBtn").onclick=()=>calendar();
+
+/* Ensure notes with assigned dates do not retain spoken scheduling words. */
+const cleanCommandWordsV84Base=cleanCommandWords;
+cleanCommandWords=function(text){
+  return cleanCommandWordsV84Base(text)
+    .replace(/\b(в|на)\s+(понедельник|понедельника|вторник|вторника|среду|среда|среды|четверг|четверга|пятницу|пятница|пятницы|субботу|суббота|субботы|воскресенье|воскресенья)\b/gi,"")
+    .replace(/\b(на\s+)?\d{1,2}\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\b/gi,"")
+    .replace(/\s{2,}/g," ")
+    .trim();
+};
+
+if($("#versionBadge"))$("#versionBadge").textContent="v8.4";
+renderAll();

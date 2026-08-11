@@ -726,3 +726,80 @@ body:not(.light) .nb-head{
   opacity:1;
   transform:none;
 }
+
+
+/* v8.4 — iPhone 11 safe area, live dictation, no notebook page swipes */
+.nb-head{
+  height:calc(64px + env(safe-area-inset-top))!important;
+  padding-top:calc(12px + env(safe-area-inset-top))!important;
+}
+.notebook-editor,
+.notebook-gallery{
+  height:calc(100% - 64px - env(safe-area-inset-top))!important;
+}
+.notebook-screen{
+  padding-top:0!important;
+}
+
+.voice-live-panel{
+  position:fixed;
+  right:82px;
+  bottom:max(18px,env(safe-area-inset-bottom));
+  z-index:1199;
+  width:min(68vw,360px);
+  padding:11px 12px;
+  border-radius:16px;
+  background:rgba(255,255,255,.94);
+  border:1px solid rgba(166,91,239,.28);
+  box-shadow:0 10px 32px rgba(58,34,79,.16);
+  backdrop-filter:blur(18px);
+  -webkit-backdrop-filter:blur(18px);
+  display:none;
+}
+.voice-live-panel.open{display:block}
+.voice-live-title{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+  margin-bottom:6px;
+  color:#7f3cd1;
+  font-size:12px;
+  font-weight:800;
+}
+.voice-live-text{
+  max-height:110px;
+  overflow:auto;
+  color:#211d26;
+  font-size:15px;
+  line-height:1.35;
+  white-space:pre-wrap;
+}
+.voice-delete-word{
+  flex:0 0 auto;
+  padding:5px 8px;
+  border-radius:9px;
+  background:#f0e4ff;
+  color:#7d36cf;
+  font-size:12px;
+  font-weight:800;
+}
+body:not(.light) .voice-live-panel{
+  background:rgba(24,20,31,.95);
+  border-color:#4a345e;
+}
+body:not(.light) .voice-live-text{color:#fff}
+
+.compact-voice.listening{
+  box-shadow:0 0 0 5px rgba(163,87,240,.12),0 10px 28px rgba(97,40,145,.18)!important;
+}
+.compact-voice.listening .mic::after{
+  content:"";
+  position:absolute;
+  inset:-5px;
+  border-radius:50%;
+  border:2px solid rgba(166,83,245,.65);
+}
+
+/* Notebook pages are selected only from the gallery, never by horizontal swipe. */
+#notebookPager{touch-action:pan-x pan-y pinch-zoom!important}
