@@ -1,122 +1,21 @@
 <!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-  <meta name="theme-color" content="#08080d">
-  <meta name="app-version" content="8.5">
+  <meta name="theme-color" content="#f7f5fa">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Ассистент">
-  <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="icon.svg">
-  <link rel="stylesheet" href="style.css">
-  <title>Голосовой ассистент</title>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="application-name" content="Voice Notes React">
+  <meta name="app-version" content="9.0">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" href="./icon.svg">
+  <link rel="apple-touch-icon" href="./icon.svg">
+  <link rel="stylesheet" href="./style.css">
+  <title>Голосовые заметки React v9</title>
 </head>
 <body>
-<div class="app">
-  <header class="topbar">
-    <div class="search"><span>⌕</span><input id="globalSearch" placeholder="Поиск..."></div>
-    <div id="versionBadge" class="version-badge">v8.5</div><div class="top-actions">
-      <button id="settingsBtn" class="icon-btn">⚙︎</button>
-      <button id="calcBtn" class="icon-btn">⌘</button>
-      <button id="themeBtn" class="icon-btn">◐</button>
-      <button id="calendarBtn" class="icon-btn">▣</button>
-    </div>
-  </header>
-
-  <div id="swipeStage" class="swipe-stage">
-    <section class="swipe-page side-page overdue-page">
-      <div class="page-title"><span>Просрочено</span><small id="overdueCount"></small></div>
-      <div id="overdueList" class="list"></div>
-    </section>
-
-    <section class="swipe-page center-page">
-      <section class="notes-box" id="notesBox">
-        <button id="expandNotes" class="expand">↗</button>
-        <div id="notesList" class="notes-list"></div>
-      </section>
-
-      <div class="groups-title"><span>Разделы</span><button id="addSectionBtn">＋</button></div>
-      <div id="homeGroups" class="groups"></div>
-    </section>
-
-    <section class="swipe-page side-page week-page">
-      <div class="page-title week-title"><button id="weekBackBtn" class="week-back" aria-label="Назад в заметки">‹</button><span>План на неделю</span><button id="weekCalendarBtn">▣</button></div>
-      <div id="weekStrip" class="week-strip"></div>
-      <div id="weekTasks" class="list"></div>
-    </section>
-  </div>
-
-  <aside id="floatingDock" class="floating-dock" aria-label="Быстрые действия">
-    <button id="notebookFloatBtn" class="float-action float-notebook" aria-label="Блокнот">▤</button>
-    <button id="navUndoBtn" class="float-action float-nav" aria-label="Назад или отменить">←</button>
-    <section id="voiceBar" class="voice-bar compact-voice">
-      <button id="micBtn" class="mic" aria-label="Голосовой ввод">🎙</button>
-      <div class="voice-copy">
-        <b id="voiceTitle">Голосовой ввод</b>
-        <small id="voiceStatus">Нажмите или удерживайте</small>
-      </div>
-      <div id="wave" class="wave"></div>
-    </section>
-  </aside>
-
-<section id="employeesScreen" class="screen hidden">
-    <div class="screen-head"><button class="backBtn">‹</button><b>Сотрудники</b><button id="addEmployeeBtn">＋</button></div>
-    <div class="search compact"><span>⌕</span><input id="employeeSearch" placeholder="Найти сотрудника..."></div>
-    <div id="employeesList" class="employees-list"></div>
-  </section>
-
-  <section id="notebookScreen" class="screen hidden notebook-screen">
-    <div class="nb-head">
-      <button id="nbExitBtn" class="nb-head-btn">‹</button>
-      <b>Блокнот</b>
-      <div class="nb-head-actions">
-        <button id="sharePageBtn" class="nb-head-btn">↗</button>
-        <button id="nbGalleryBtn" class="nb-head-btn">▦</button>
-      </div>
-    </div>
-
-    <div id="notebookEditor" class="notebook-editor">
-      <div class="notebook-tools">
-        <button id="textModeBtn" class="nb-tool active">Текст</button>
-        <button id="drawModeBtn" class="nb-tool">✎</button>
-        <button id="eraserBtn" class="nb-tool">⌫</button>
-        <button id="clearDrawBtn" class="nb-tool">Очистить</button><button id="zoomOutBtn" class="nb-tool" aria-label="Уменьшить">−</button><button id="zoomInBtn" class="nb-tool" aria-label="Увеличить">＋</button>
-      </div>
-      <div id="notebookPager" class="notebook-pager">
-        <div class="paper" id="paper">
-          <div class="page-label" id="pageLabel">Лист 1</div>
-          <textarea id="paperText" spellcheck="false" placeholder=""></textarea>
-          <canvas id="drawCanvas"></canvas>
-          <div class="page-num" id="pageNum"></div>
-        </div>
-      </div>
-    </div>
-
-    <div id="notebookGallery" class="notebook-gallery hidden">
-      <div class="gallery-head">
-        <b>Листы</b>
-        <button id="newPageBtn" class="gallery-add">＋ Новый лист</button>
-      </div>
-      <div id="sheetGrid" class="sheet-grid"></div>
-    </div>
-  </section>
-
-  <section id="completedScreen" class="screen hidden">
-    <div class="screen-head"><button class="backBtn">‹</button><b>Выполненные</b><span></span></div>
-    <div id="completedList" class="list"></div>
-  </section>
-
-
-</div>
-
-<div id="modal" class="modal hidden">
-  <div class="sheet">
-    <button id="modalClose" class="close">×</button>
-    <div id="modalContent"></div>
-  </div>
-</div>
-<script src="app.js"></script>
+  <div id="root"></div>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>

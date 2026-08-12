@@ -1,58 +1,11 @@
-const CACHE="assistant-v8.5";
-const ASSETS=[
-  "./",
-  "./index.html",
-  "./style.css",
-  "./app.js",
-  "./manifest.json",
-  "./icon.svg"
-];
-
-self.addEventListener("install",event=>{
-  self.skipWaiting();
-  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)));
-});
-
-self.addEventListener("activate",event=>{
-  event.waitUntil(
-    caches.keys()
-      .then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))
-      .then(()=>self.clients.claim())
-  );
-});
-
-self.addEventListener("message",event=>{
-  if(event.data?.type==="SKIP_WAITING") self.skipWaiting();
-});
-
-self.addEventListener("fetch",event=>{
-  const req=event.request;
-  if(req.method!=="GET") return;
-
-  const url=new URL(req.url);
-
-  if(req.mode==="navigate" || url.pathname.endsWith("/index.html")){
-    event.respondWith(
-      fetch(req,{cache:"no-store"})
-        .then(res=>{
-          const copy=res.clone();
-          caches.open(CACHE).then(c=>c.put("./index.html",copy));
-          return res;
-        })
-        .catch(()=>caches.match("./index.html").then(r=>r||caches.match("./")))
-    );
-    return;
+const CACHE="voice-notes-react-v9.0";
+const LOCAL=["./","./index.html","./style.css","./app.js","./voice.js","./dates.js","./storage.js","./manifest.json","./icon.svg"];
+self.addEventListener("install",e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(LOCAL)).then(()=>self.skipWaiting())));
+self.addEventListener("activate",e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
+self.addEventListener("fetch",e=>{
+  if(e.request.method!=="GET")return;
+  const url=new URL(e.request.url);
+  if(url.origin===location.origin){
+    e.respondWith(fetch(e.request).then(r=>{const copy=r.clone();caches.open(CACHE).then(c=>c.put(e.request,copy));return r}).catch(()=>caches.match(e.request)));
   }
-
-  event.respondWith(
-    fetch(req,{cache:"no-store"})
-      .then(res=>{
-        if(res?.ok){
-          const copy=res.clone();
-          caches.open(CACHE).then(c=>c.put(req,copy));
-        }
-        return res;
-      })
-      .catch(()=>caches.match(req))
-  );
 });

@@ -1,16 +1,16 @@
 {
-  "name": "Голосовой ассистент",
-  "short_name": "Ассистент",
+  "name": "Голосовые заметки React v9",
+  "short_name": "Voice Notes",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#08080d",
-  "theme_color": "#08080d",
-  "lang": "ru",
+  "background_color": "#f7f5fa",
+  "theme_color": "#f7f5fa",
   "icons": [
     {
-      "src": "icon.svg",
+      "src": "./icon.svg",
       "sizes": "any",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ]
 }
