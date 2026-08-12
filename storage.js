@@ -49,6 +49,20 @@ export function migrate(raw) {
   if (!db.sections.some(s => s.id === "buy")) {
     db.sections.unshift({ id: "buy", name: "Купить для производства", icon: "🛒", items: [] });
   }
+  db.sections = db.sections.map(section => ({
+    ...section,
+    items: Array.isArray(section.items) ? section.items.map(item =>
+      typeof item === "string"
+        ? { id: Date.now() + Math.floor(Math.random()*100000), title: item, subnotes: [] }
+        : {
+            id: item.id || Date.now() + Math.floor(Math.random()*100000),
+            title: item.title || item.text || "",
+            subnotes: Array.isArray(item.subnotes) ? item.subnotes.map(s =>
+              typeof s === "string" ? { id: Date.now()+Math.floor(Math.random()*100000), text: s } : s
+            ) : []
+          }
+    ) : []
+  }));
 
   const baseEmployees = defaults.employees;
   for (const base of baseEmployees) {

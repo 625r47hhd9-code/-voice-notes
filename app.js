@@ -6,7 +6,7 @@ import { useVoiceRecognition } from "./voice.js";
 
 const { useCallback, useEffect, useMemo, useRef, useState } = React;
 const h = React.createElement;
-const VERSION = "9.0";
+const VERSION = "9.3";
 
 const EMPLOYEE_ALIASES = {
   "Артём Мишин": ["артём","артем","артёму","артему","тёма","тема","тёме","теме"],
@@ -53,16 +53,15 @@ function useTheme() {
   return [light, setLight];
 }
 
-function Header({ search, setSearch, onSettings, onCalc, light, setLight, onCalendar }) {
-  return h("header", { className: "topbar" },
+function Header({ search, setSearch, onSettings, light, setLight, onApps }) {
+  return h("header", { className: "topbar v93" },
     h("div", { className: "searchbox" },
       h("span", null, "⌕"),
       h("input", { value: search, onChange: e => setSearch(e.target.value), placeholder: "Поиск…" })
     ),
     h("button", { className: "topbtn", onClick: onSettings, "aria-label": "Настройки" }, "⚙"),
-    h("button", { className: "topbtn", onClick: onCalc, "aria-label": "Калькулятор" }, "⌘"),
     h("button", { className: "topbtn", onClick: () => setLight(!light), "aria-label": "Тема" }, light ? "◐" : "◑"),
-    h("button", { className: "topbtn calendar-top", onClick: onCalendar, "aria-label": "Календарь" }, "▣",
+    h("button", { className: "topbtn apps-top", onClick: onApps, "aria-label": "Приложения" }, "▦",
       h("span", { className: "version-badge" }, `v${VERSION}`)
     )
   );
@@ -92,7 +91,7 @@ function GroupRow({ icon, title, meta, onClick, children, open }) {
   );
 }
 
-function Home({ db, setDb, search, openScreen, openCalendar }) {
+function LegacyHome({ db, setDb, search, openScreen, openCalendar }) {
   const [openSection, setOpenSection] = useState(null);
 
   const completeNote = n => {
@@ -143,6 +142,182 @@ function Home({ db, setDb, search, openScreen, openCalendar }) {
       h(GroupRow, { icon: "✓", title: "Выполненные", meta: String(db.completed.length), onClick: () => openScreen("completed") }),
       h(GroupRow, { icon: "♙", title: "Сотрудники", meta: `${db.employees.length} сотрудника`, onClick: () => openScreen("employees") }),
       h(GroupRow, { icon: "▣", title: "Календарь", meta: "Задачи по датам", onClick: openCalendar })
+    )
+  );
+}
+
+
+function shiftIsoDay(value, delta) {
+  const d = fromIso(value);
+  d.setDate(d.getDate() + delta);
+  return iso(d);
+}
+
+function DayTaskRow({ task, employee, onDone, onMore }) {
+  return h("div",{className:"day-note-row"},
+    h("button",{className:"day-check",onClick:()=>onDone(task),"aria-label":"Выполнено"},""),
+    h("div",{className:"day-note-main"},
+      h("div",{className:"day-note-text"},task.text),
+      employee?h("small",null,employee.name):null
+    ),
+    h("button",{className:"note-more",onClick:()=>onMore(task),"aria-label":"Перенести"},"•••")
+  );
+}
+
+function DayHome({db,setDb,selectedDay,setSelectedDay,search,onCompleteTask,onOpenSection,onMoveTask}) {
+  const [drawerOpen,setDrawerOpen]=useState(false);
+  const [draft,setDraft]=useState("");
+  const touch=useRef(null);
+  const drawerTouch=useRef(null);
+  const isToday=selectedDay===iso();
+
+  const dayTasks=db.tasks
+    .filter(t=>!t.done && t.date===selectedDay && t.text.toLowerCase().includes(search.toLowerCase()))
+    .sort((a,b)=>(a.time||"").localeCompare(b.time||""));
+
+  const addTyped=()=>{
+    const text=draft.trim();
+    if(!text)return;
+    const task={id:uid(),text,date:selectedDay,time:"",employeeId:null,done:false};
+    setDb(prev=>({...prev,tasks:[...prev.tasks,task]}));
+    setDraft("");
+  };
+
+  const dayDate=fromIso(selectedDay);
+  const dayLabel=dayDate.toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"});
+  const year=dayDate.getFullYear();
+
+  const swipeStart=e=>{
+    if(e.target.closest("button,input,textarea,[data-noswipe]"))return;
+    touch.current={x:e.touches[0].clientX,y:e.touches[0].clientY};
+  };
+  const swipeEnd=e=>{
+    if(!touch.current)return;
+    const dx=e.changedTouches[0].clientX-touch.current.x;
+    const dy=e.changedTouches[0].clientY-touch.current.y;
+    touch.current=null;
+    if(Math.abs(dx)<55||Math.abs(dx)<Math.abs(dy)*1.2)return;
+    setSelectedDay(d=>shiftIsoDay(d,dx<0?1:-1));
+  };
+
+  const compactGroups=[
+    ...db.sections.map(s=>({id:s.id,icon:s.icon||"📁",title:s.name,meta:String(s.items.length)})),
+    {id:"completed",icon:"✓",title:"Выполненные",meta:String(db.completed.length)}
+  ];
+
+  return h("main",{className:"day-home v93",onTouchStart:swipeStart,onTouchEnd:swipeEnd},
+    h("div",{className:`day-date-plaque ${isToday?"today":""}`},
+      h("div",{className:"day-date-main"},
+        h("b",null,dayLabel),
+        h("small",null,String(year))
+      ),
+      isToday?h("span",{className:"today-badge"},h("i",null),"Сегодня"):null
+    ),
+
+    h("section",{className:"day-content"},
+      h("div",{className:"day-list"},
+        dayTasks.length
+          ? dayTasks.map(t=>h(DayTaskRow,{
+              key:t.id,task:t,employee:db.employees.find(e=>e.id===t.employeeId),
+              onDone:onCompleteTask,onMore:onMoveTask
+            }))
+          : h("div",{className:"day-empty"},
+              h("b",null,isToday?"На сегодня всё свободно":"На этот день ничего не запланировано"),
+              h("span",null,"Добавь запись голосом или с клавиатуры")
+            )
+      )
+    ),
+
+    h("div",{className:"day-composer","data-noswipe":"true"},
+      h("input",{
+        value:draft,
+        onChange:e=>setDraft(e.target.value),
+        onKeyDown:e=>{if(e.key==="Enter")addTyped()},
+        placeholder:"＋ Написать…"
+      }),
+      h("button",{onClick:addTyped,disabled:!draft.trim()},"Добавить")
+    ),
+
+    h("section",{
+      className:`sections-drawer compact ${drawerOpen?"open":""}`,
+      onTouchStart:e=>drawerTouch.current=e.touches[0].clientY,
+      onTouchEnd:e=>{
+        if(drawerTouch.current==null)return;
+        const dy=e.changedTouches[0].clientY-drawerTouch.current;
+        drawerTouch.current=null;
+        if(dy<-30)setDrawerOpen(true);
+        if(dy>30)setDrawerOpen(false);
+      }
+    },
+      h("button",{className:"drawer-handle",onClick:()=>setDrawerOpen(v=>!v)},
+        h("span",{className:"handle-line"}),
+        h("b",null,"Разделы"),
+        h("span",{className:"drawer-arrow"},drawerOpen?"⌄":"⌃")
+      ),
+      h("div",{className:"drawer-horizontal"},
+        compactGroups.map(row=>h("button",{className:"group-chip",key:row.id,onClick:()=>onOpenSection(row.id)},
+          h("span",{className:"group-chip-icon"},row.icon),
+          h("span",{className:"group-chip-title"},row.title),
+          h("span",{className:"group-chip-meta"},row.meta)
+        ))
+      )
+    )
+  );
+}
+
+function SectionScreen({db,setDb,sectionId,onBack}) {
+  const section=db.sections.find(s=>s.id===sectionId);
+  const [draft,setDraft]=useState("");
+  const [subDrafts,setSubDrafts]=useState({});
+  if(!section)return h("main",{className:"sub-screen"},h("button",{onClick:onBack},"Назад"));
+
+  const normalizeItem=item=>typeof item==="string"
+    ? {id:uid(),title:item,subnotes:[]}
+    : {id:item.id||uid(),title:item.title||item.text||"",subnotes:Array.isArray(item.subnotes)?item.subnotes:[]};
+
+  const items=section.items.map(normalizeItem);
+
+  const saveItems=next=>setDb(prev=>({
+    ...prev,
+    sections:prev.sections.map(s=>s.id===sectionId?{...s,items:next}:s)
+  }));
+
+  const addNote=()=>{
+    const title=draft.trim();if(!title)return;
+    saveItems([...items,{id:uid(),title,subnotes:[]}]);
+    setDraft("");
+  };
+
+  const addSub=(itemId)=>{
+    const text=(subDrafts[itemId]||"").trim();if(!text)return;
+    saveItems(items.map(item=>item.id===itemId?{...item,subnotes:[...item.subnotes,{id:uid(),text}]}:item));
+    setSubDrafts(prev=>({...prev,[itemId]:""}));
+  };
+
+  return h("main",{className:"section-screen"},
+    h("div",{className:"sub-title section-screen-title"},
+      h("button",{onClick:onBack},"‹"),
+      h("b",null,section.name),
+      h("span",null,"")
+    ),
+    h("div",{className:"section-note-composer"},
+      h("input",{value:draft,onChange:e=>setDraft(e.target.value),onKeyDown:e=>{if(e.key==="Enter")addNote()},placeholder:"＋ Новая заметка…"}),
+      h("button",{onClick:addNote},"Добавить")
+    ),
+    h("div",{className:"section-notes"},
+      items.length?items.map(item=>h("article",{className:"section-note",key:item.id},
+        h("div",{className:"section-note-title"},item.title),
+        h("div",{className:"subnotes"},
+          item.subnotes.map(sub=>h("div",{className:"subnote",key:sub.id||sub.text},
+            h("span",{className:"subnote-dot"},"—"),
+            h("span",null,sub.text||sub)
+          ))
+        ),
+        h("div",{className:"subnote-composer"},
+          h("input",{value:subDrafts[item.id]||"",onChange:e=>setSubDrafts(prev=>({...prev,[item.id]:e.target.value})),onKeyDown:e=>{if(e.key==="Enter")addSub(item.id)},placeholder:"Добавить подзаметку…"}),
+          h("button",{onClick:()=>addSub(item.id)},"＋")
+        )
+      )):h("div",{className:"day-empty"},h("b",null,"Пока пусто"),h("span",null,"Добавь первую заметку"))
     )
   );
 }
@@ -285,45 +460,142 @@ function Modal({ title, children, onClose }) {
   );
 }
 
-function CalendarModal({ initial, onSelect, onClose }) {
+
+function CalendarGrid({initial,onSelect,taskDates=[],completedDates=[],overdueDates=[]}) {
   const [month, setMonth] = useState(() => {
     const d = initial ? fromIso(initial) : new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
   const touch = useRef(null);
-
   const y = month.getFullYear(), m = month.getMonth();
   const first = new Date(y,m,1);
   const last = new Date(y,m+1,0);
   const lead = (first.getDay()+6)%7;
   const cells = [...Array(lead).fill(null), ...Array.from({length:last.getDate()},(_,i)=>i+1)];
-
   const shift = delta => setMonth(new Date(y, m + delta, 1));
 
-  return h(Modal, { title: "Календарь", onClose },
-    h("div", {
-      className: "calendar",
-      onTouchStart: e => touch.current = e.touches[0].clientX,
-      onTouchEnd: e => {
-        if (touch.current == null) return;
-        const dx = e.changedTouches[0].clientX - touch.current; touch.current = null;
-        if (Math.abs(dx)>60) shift(dx<0?1:-1);
+  return h("div", {
+      className:"calendar calendar-v3",
+      onTouchStart:e=>touch.current=e.touches[0].clientX,
+      onTouchEnd:e=>{
+        if(touch.current==null)return;
+        const dx=e.changedTouches[0].clientX-touch.current;touch.current=null;
+        if(Math.abs(dx)>60)shift(dx<0?1:-1);
       }
     },
-      h("div", { className: "calendar-head" },
-        h("button", { onClick: () => shift(-1) }, "‹"),
-        h("b", null, month.toLocaleDateString("ru-RU",{month:"long",year:"numeric"})),
-        h("button", { onClick: () => shift(1) }, "›")
-      ),
-      h("div", { className: "weekdays" }, ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"].map(x=>h("span",{key:x},x))),
-      h("div", { className: "calendar-grid" },
-        cells.map((day,i) => day == null ? h("span",{key:`e${i}`}) : (() => {
-          const value = iso(new Date(y,m,day,12));
-          return h("button", {
-            key:value, className: `${value===iso()?"today":""} ${value===initial?"selected":""}`,
-            onClick:()=>onSelect(value)
-          }, String(day));
-        })())
+    h("div",{className:"calendar-head"},
+      h("button",{onClick:()=>shift(-1)},"‹"),
+      h("b",null,month.toLocaleDateString("ru-RU",{month:"long",year:"numeric"})),
+      h("button",{onClick:()=>shift(1)},"›")
+    ),
+    h("div",{className:"weekdays"},["Пн","Вт","Ср","Чт","Пт","Сб","Вс"].map(x=>h("span",{key:x},x))),
+    h("div",{className:"calendar-grid"},
+      cells.map((day,i)=>day==null?h("span",{key:`e${i}`}):(()=>{
+        const value=iso(new Date(y,m,day,12));
+        const hasTask=taskDates.includes(value);
+        const hasDone=completedDates.includes(value);
+        const hasOverdue=overdueDates.includes(value);
+        return h("button",{
+          key:value,
+          className:`calendar-day ${value===iso()?"today":""} ${value===initial?"selected":""}`,
+          onClick:()=>onSelect(value)
+        },
+          h("span",null,String(day)),
+          (hasTask||hasDone||hasOverdue)?h("i",{className:`day-dot ${hasOverdue?"overdue":hasDone?"done":"task"}`}):null
+        );
+      })())
+    )
+  );
+}
+
+function CalendarModal({ initial, db, onSelect, onClose }) {
+  const [view,setView]=useState("calendar");
+  const taskDates=[...new Set(db.tasks.filter(t=>!t.done&&t.date).map(t=>t.date))];
+  const overdueDates=[...new Set(db.tasks.filter(t=>!t.done&&t.date&&t.date<iso()).map(t=>t.date))];
+
+  const nearby=useMemo(()=>{
+    const map=new Map();
+    db.tasks.filter(t=>!t.done&&t.date>=iso()).sort((a,b)=>a.date.localeCompare(b.date)).forEach(t=>{
+      map.set(t.date,(map.get(t.date)||0)+1);
+    });
+    return [...map.entries()].slice(0,7);
+  },[db]);
+
+  return h(Modal,{title:"Календарь",onClose},
+    h("div",{className:"calendar-view-tabs"},
+      h("button",{className:view==="calendar"?"active":"",onClick:()=>setView("calendar")},"Календарь"),
+      h("button",{className:view==="list"?"active":"",onClick:()=>setView("list")},"Список")
+    ),
+    view==="calendar"
+      ? h(React.Fragment,null,
+          h(CalendarGrid,{initial,onSelect,taskDates,overdueDates}),
+          h("div",{className:"calendar-nearby-title"},"Ближайшие даты с задачами"),
+          h("div",{className:"calendar-nearby"},
+            nearby.length?nearby.map(([date,count])=>h("button",{key:date,onClick:()=>onSelect(date)},
+              h("span",null,fromIso(date).toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"short"})),
+              h("b",null,String(count)),h("i",null,"›")
+            )):h("div",{className:"empty compact"},"Нет ближайших задач")
+          )
+        )
+      : h("div",{className:"calendar-list"},
+          nearby.length?nearby.map(([date,count])=>h("button",{key:date,onClick:()=>onSelect(date)},
+            h("b",null,fromIso(date).toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"})),
+            h("span",null,`${count} задач`)
+          )):h("div",{className:"empty"},"Нет задач")
+        )
+  );
+}
+
+function TransferModal({task,db,onMoveDate,onMoveCategory,onClose}) {
+  const [mode,setMode]=useState("date");
+  const [picked,setPicked]=useState(task?.date||iso());
+
+  return h(Modal,{title:"Перенести заметку",onClose},
+    h("div",{className:"transfer-tabs"},
+      h("button",{className:mode==="date"?"active":"",onClick:()=>setMode("date")},"Дата"),
+      h("button",{className:mode==="category"?"active":"",onClick:()=>setMode("category")},"Категория")
+    ),
+    h("div",{className:"transfer-task"},task?.text||""),
+    mode==="date"
+      ? h(React.Fragment,null,
+          h(CalendarGrid,{
+            initial:picked,
+            onSelect:setPicked,
+            taskDates:[...new Set(db.tasks.filter(t=>!t.done&&t.date).map(t=>t.date))],
+            overdueDates:[...new Set(db.tasks.filter(t=>!t.done&&t.date&&t.date<iso()).map(t=>t.date))]
+          }),
+          h("div",{className:"quick-date-row"},
+            [["Сегодня",iso()],["Завтра",plusDays(1)],["Через 3 дня",plusDays(3)],["Через неделю",plusDays(7)]].map(([label,val])=>
+              h("button",{key:label,onClick:()=>setPicked(val)},label)
+            )
+          ),
+          h("button",{className:"primary",onClick:()=>onMoveDate(task,picked)},"Перенести на дату")
+        )
+      : h("div",{className:"category-picker"},
+          db.sections.map(s=>h("button",{key:s.id,onClick:()=>onMoveCategory(task,s.id)},
+            h("span",{className:"category-icon"},s.icon||"📁"),
+            h("span",{className:"category-name"},s.name),
+            h("span",{className:"category-count"},String(s.items.length)),
+            h("span",{className:"category-arrow"},"›")
+          ))
+        )
+  );
+}
+
+function AppsMenu({onClose,onEmployees,onCalendar,onCalculator,onNotebook}) {
+  const items=[
+    ["♙","Сотрудники",onEmployees],
+    ["▣","Календарь",onCalendar],
+    ["⌘","Калькулятор",onCalculator],
+    ["▤","Блокнот",onNotebook]
+  ];
+  return h("div",{className:"apps-menu-layer",onMouseDown:e=>{if(e.target===e.currentTarget)onClose()}},
+    h("div",{className:"apps-menu"},
+      h("div",{className:"apps-menu-head"},h("b",null,"Инструменты"),h("button",{onClick:onClose},"×")),
+      h("div",{className:"apps-grid"},
+        items.map(([icon,label,fn])=>h("button",{key:label,onClick:()=>{onClose();fn()}},
+          h("span",null,icon),h("b",null,label)
+        ))
       )
     )
   );
@@ -332,7 +604,7 @@ function CalendarModal({ initial, onSelect, onClose }) {
 function SettingsModal({ onClose }) {
   const groups = [
     ["Голосовой ввод", ["Нажми 🎙 один раз — начать диктовку.","Нажми 🎙 ещё раз — сохранить сказанное.","⌫ слово — удалить последнее распознанное слово до сохранения."]],
-    ["Заметки и даты", ["«Позвонить поставщику» → обычная заметка.","«В среду съездить на рыбалку» → задача на ближайшую среду.","«Завтра проверить склад» → задача на завтра.","«15 августа встретиться с клиентом» → задача на указанную дату."]],
+    ["День и даты", ["«Позвонить поставщику» → запись на открытый сейчас день.","«В среду съездить на рыбалку» → запись на ближайшую среду.","«Завтра проверить склад» → задача на завтра.","«15 августа встретиться с клиентом» → задача на указанную дату."]],
     ["Сотрудники", ["«Лёхе позвонить клиенту завтра» → задача Алексею.","«Тёме проверить оборудование в пятницу» → задача Артёму.","«Диме съездить на склад» → задача Диме."]],
     ["Разделы", ["«Купить для производства перчатки» → добавляет покупку.","«Сделано» / «Выполнено» → выполняет последнюю заметку."]],
     ["Блокнот", ["Открой лист и включи 🎙 — текст пишется на текущий лист.","Рисовать — одним пальцем. Масштабировать — двумя пальцами."]]
@@ -346,34 +618,143 @@ function SettingsModal({ onClose }) {
 }
 
 function CalculatorModal({ onClose }) {
-  const [value,setValue]=useState("");
-  const [result,setResult]=useState("");
-  const calc=()=>{
-    try {
-      if (!/^[0-9+\-*/().,\s]+$/.test(value)) throw new Error();
-      const expr=value.replace(/,/g,".");
-      setResult(String(Function(`"use strict";return (${expr})`)()));
-    } catch { setResult("Ошибка"); }
+  const [tab,setTab]=useState("main");
+  const [expr,setExpr]=useState("");
+  const [result,setResult]=useState("0");
+  const [memory,setMemory]=useState(0);
+  const [history,setHistory]=useState(()=>{
+    try{return JSON.parse(localStorage.getItem("assistant-calc-history")||"[]")}catch{return []}
+  });
+  const [showHistory,setShowHistory]=useState(false);
+  const [convert,setConvert]=useState({kind:"length",value:"1",from:"m",to:"cm"});
+
+  useEffect(()=>{localStorage.setItem("assistant-calc-history",JSON.stringify(history.slice(0,80)))},[history]);
+
+  const safeEval=raw=>{
+    let x=String(raw||"")
+      .replace(/×/g,"*").replace(/÷/g,"/").replace(/,/g,".")
+      .replace(/π/g,String(Math.PI)).replace(/\be\b/g,String(Math.E))
+      .replace(/\^/g,"**");
+    if(!/^[0-9+\-*/().\s*]+$/.test(x))throw new Error();
+    return Function(`"use strict";return (${x})`)();
   };
-  return h(Modal,{title:"Калькулятор",onClose},
-    h("input",{className:"field",value,onChange:e=>setValue(e.target.value),placeholder:"125*8"}),
-    h("button",{className:"primary",onClick:calc},"Посчитать"),
-    result?h("div",{className:"calc-result"},result):null
+
+  const commit=(label=expr,value=null)=>{
+    try{
+      const v=value===null?safeEval(expr):value;
+      if(!Number.isFinite(v))throw new Error();
+      const text=Number(v.toFixed(10)).toLocaleString("ru-RU",{maximumFractionDigits:10});
+      setResult(text);
+      setHistory(prev=>[{expr:label,result:text,at:new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})},...prev].slice(0,80));
+      return v;
+    }catch{
+      setResult("Ошибка");
+      return null;
+    }
+  };
+
+  const append=s=>setExpr(v=>v+String(s));
+  const back=()=>setExpr(v=>v.slice(0,-1));
+  const clear=()=>{setExpr("");setResult("0")};
+  const unary=(name,fn)=>{
+    try{
+      const base=expr?safeEval(expr):Number(String(result).replace(/\s/g,"").replace(",","."));
+      const v=fn(base);
+      if(!Number.isFinite(v))throw new Error();
+      setExpr(String(v));
+      commit(`${name}(${base})`,v);
+    }catch{setResult("Ошибка")}
+  };
+
+  const mainKeys=[
+    ["(",()=>append("(")], [")",()=>append(")")], ["%",()=>append("/100")], ["⌫",back],
+    ["7",()=>append("7")],["8",()=>append("8")],["9",()=>append("9")],["÷",()=>append("÷")],
+    ["4",()=>append("4")],["5",()=>append("5")],["6",()=>append("6")],["×",()=>append("×")],
+    ["1",()=>append("1")],["2",()=>append("2")],["3",()=>append("3")],["−",()=>append("-")],
+    ["+/-",()=>setExpr(v=>v.startsWith("-")?v.slice(1):"-"+v)],["0",()=>append("0")],[",",()=>append(".")],["+",()=>append("+")]
+  ];
+
+  const scientific=[
+    ["x²",()=>unary("x²",x=>x*x)],["x³",()=>unary("x³",x=>x*x*x)],["√x",()=>unary("√",Math.sqrt)],["∛x",()=>unary("∛",Math.cbrt)],
+    ["xʸ",()=>append("^")],["1/x",()=>unary("1/x",x=>1/x)],["|x|",()=>unary("|x|",Math.abs)],["π",()=>append("π")],
+    ["sin",()=>unary("sin",x=>Math.sin(x*Math.PI/180))],["cos",()=>unary("cos",x=>Math.cos(x*Math.PI/180))],["tan",()=>unary("tan",x=>Math.tan(x*Math.PI/180))],["e",()=>append("e")]
+  ];
+
+  const conv={
+    length:{label:"Длина",units:{mm:.001,cm:.01,m:1,km:1000}},
+    area:{label:"Площадь",units:{"мм²":.000001,"см²":.0001,"м²":1,"км²":1000000}},
+    volume:{label:"Объём",units:{"мл":.001,"л":1,"м³":1000}},
+    mass:{label:"Масса",units:{g:.001,kg:1,t:1000}}
+  };
+  const c=conv[convert.kind];
+  const convertResult=()=>{
+    const n=Number(String(convert.value).replace(",","."));
+    if(!Number.isFinite(n))return 0;
+    return n*c.units[convert.from]/c.units[convert.to];
+  };
+
+  return h("div",{className:"calculator-screen"},
+    h("div",{className:"calc-top"},
+      h("button",{onClick:onClose},"‹"),
+      h("b",null,"Калькулятор"),
+      h("div",{className:"calc-top-actions"},
+        h("button",{onClick:()=>setShowHistory(v=>!v)},"↶"),
+        h("button",{onClick:()=>clear()},"⋮")
+      )
+    ),
+    h("div",{className:"calc-mode-tabs"},
+      h("button",{className:tab==="main"?"active":"",onClick:()=>setTab("main")},"Основной"),
+      h("button",{className:tab==="science"?"active":"",onClick:()=>setTab("science")},"Научный"),
+      h("button",{className:tab==="convert"?"active":"",onClick:()=>setTab("convert")},"Конвертер")
+    ),
+    showHistory?h("div",{className:"calc-history-panel"},
+      h("div",{className:"calc-history-head"},h("b",null,"История"),h("button",{onClick:()=>setHistory([])},"Очистить")),
+      history.length?history.map((x,i)=>h("button",{key:i,onClick:()=>{setExpr(x.expr);setResult(x.result);setShowHistory(false)}},
+        h("span",null,x.expr),h("b",null,x.result),h("small",null,x.at)
+      )):h("div",{className:"empty compact"},"История пуста")
+    ):null,
+    tab!=="convert"?h(React.Fragment,null,
+      h("div",{className:"calc-display"},
+        h("div",{className:"calc-expression"},expr||"0"),
+        h("div",{className:"calc-big-result"},result),
+        history[0]?h("div",{className:"calc-last"},`${history[0].expr} = ${history[0].result}`):null
+      ),
+      tab==="main"?h(React.Fragment,null,
+        h("div",{className:"memory-row"},
+          h("button",{onClick:()=>setMemory(0)},"mc"),
+          h("button",{onClick:()=>setMemory(m=>m+(Number(String(result).replace(/\s/g,"").replace(",","."))||0))},"m+"),
+          h("button",{onClick:()=>setMemory(m=>m-(Number(String(result).replace(/\s/g,"").replace(",","."))||0))},"m−"),
+          h("button",{onClick:()=>setExpr(String(memory))},"mr")
+        ),
+        h("div",{className:"calc-keypad main"},mainKeys.map(([label,fn])=>h("button",{key:label,onClick:fn,className:/[÷×−+]/.test(label)?"op":""},label)))
+      ):h(React.Fragment,null,
+        h("div",{className:"science-grid"},scientific.map(([label,fn])=>h("button",{key:label,onClick:fn},label))),
+        h("div",{className:"calc-keypad main science-numbers"},mainKeys.slice(4).map(([label,fn])=>h("button",{key:label,onClick:fn,className:/[÷×−+]/.test(label)?"op":""},label)))
+      ),
+      h("button",{className:"calc-equals",onClick:()=>commit()},"=")
+    ):h("div",{className:"converter-panel"},
+      h("div",{className:"converter-kind"},Object.entries(conv).map(([id,o])=>h("button",{key:id,className:convert.kind===id?"active":"",onClick:()=>{
+        const keys=Object.keys(o.units);setConvert({kind:id,value:"1",from:keys[0],to:keys[1]||keys[0]})
+      }},o.label))),
+      h("label",null,h("span",null,"Значение"),h("input",{inputMode:"decimal",value:convert.value,onChange:e=>setConvert({...convert,value:e.target.value})})),
+      h("div",{className:"converter-selects"},
+        h("select",{value:convert.from,onChange:e=>setConvert({...convert,from:e.target.value})},Object.keys(c.units).map(u=>h("option",{key:u,value:u},u))),
+        h("span",null,"→"),
+        h("select",{value:convert.to,onChange:e=>setConvert({...convert,to:e.target.value})},Object.keys(c.units).map(u=>h("option",{key:u,value:u},u)))
+      ),
+      h("div",{className:"converter-result"},`${Number(convertResult()).toLocaleString("ru-RU",{maximumFractionDigits:8})} ${convert.to}`)
+    )
   );
 }
 
 function Notebook({ db, setDb, mode, setMode, onBack, voiceListening }) {
   const page = db.notebook[db.page] || {text:"",drawing:""};
   const [tool,setTool] = useState("text");
-  const [zoom,setZoom] = useState(1);
   const canvasRef = useRef(null);
-  const wrapRef = useRef(null);
   const ctxRef = useRef(null);
-  const pointers = useRef(new Map());
+  const activePointer = useRef(null);
   const drawing = useRef(false);
-  const pinching = useRef(false);
   const last = useRef(null);
-  const pinchStart = useRef({distance:0,zoom:1});
 
   const savePage = patch => setDb(prev => {
     const notebook = [...prev.notebook];
@@ -407,70 +788,31 @@ function Notebook({ db, setDb, mode, setMode, onBack, voiceListening }) {
     const canvas=canvasRef.current;
     if(canvas) savePage({drawing:canvas.toDataURL("image/png")});
   };
-
   const point=e=>{
     const rect=canvasRef.current.getBoundingClientRect();
     return {x:e.clientX-rect.left,y:e.clientY-rect.top};
   };
-
-  const distance=()=>{
-    const a=[...pointers.current.values()];
-    if(a.length<2)return 0;
-    return Math.hypot(a[1].x-a[0].x,a[1].y-a[0].y);
-  };
-
   const pointerDown=e=>{
-    if(tool==="text") return;
+    if(tool==="text")return;
+    if(activePointer.current!==null&&activePointer.current!==e.pointerId)return;
+    activePointer.current=e.pointerId;
     e.currentTarget.setPointerCapture?.(e.pointerId);
-    pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});
-
-    if(pointers.current.size>=2){
-      pinching.current=true;
-      drawing.current=false;
-      pinchStart.current={distance:distance(),zoom};
-      return;
-    }
-    if(pinching.current)return;
     drawing.current=true;
     last.current=point(e);
   };
-
   const pointerMove=e=>{
-    if(tool==="text")return;
-    if(pointers.current.has(e.pointerId)) pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});
-
-    if(pointers.current.size>=2 || pinching.current){
-      pinching.current=true;
-      drawing.current=false;
-      const d=distance();
-      if(d && pinchStart.current.distance){
-        setZoom(Math.max(.8,Math.min(2.6,pinchStart.current.zoom*d/pinchStart.current.distance)));
-      }
-      return;
-    }
-
-    if(!drawing.current || !last.current)return;
-    const ctx=ctxRef.current;
-    const p=point(e);
+    if(tool==="text"||!drawing.current||activePointer.current!==e.pointerId||!last.current)return;
+    const ctx=ctxRef.current,p=point(e);
     ctx.globalCompositeOperation=tool==="erase"?"destination-out":"source-over";
     ctx.strokeStyle="#2d2927";
     ctx.lineWidth=tool==="erase"?22:3;
     ctx.beginPath();ctx.moveTo(last.current.x,last.current.y);ctx.lineTo(p.x,p.y);ctx.stroke();
     last.current=p;
   };
-
   const pointerUp=e=>{
-    pointers.current.delete(e.pointerId);
-    if(pinching.current){
-      if(pointers.current.size<2) {
-        pinching.current=false;
-        drawing.current=false;
-        last.current=null;
-      }
-      return;
-    }
+    if(activePointer.current!==e.pointerId)return;
     if(drawing.current)saveDrawing();
-    drawing.current=false;last.current=null;
+    drawing.current=false;activePointer.current=null;last.current=null;
   };
 
   if(mode==="gallery"){
@@ -506,14 +848,11 @@ function Notebook({ db, setDb, mode, setMode, onBack, voiceListening }) {
       h("button",{className:tool==="text"?"active":"",onClick:()=>setTool("text")},"Текст"),
       h("button",{className:tool==="draw"?"active":"",onClick:()=>setTool("draw")},"✎"),
       h("button",{className:tool==="erase"?"active":"",onClick:()=>setTool("erase")},"⌫"),
-      h("button",{onClick:()=>{ctxRef.current?.clearRect(0,0,canvasRef.current.clientWidth,canvasRef.current.clientHeight);savePage({drawing:""});}},"Очистить"),
-      h("button",{onClick:()=>setZoom(z=>Math.max(.8,z-.2))},"−"),
-      h("button",{onClick:()=>setZoom(z=>Math.min(2.6,z+.2))},"＋")
+      h("button",{onClick:()=>{ctxRef.current?.clearRect(0,0,canvasRef.current.clientWidth,canvasRef.current.clientHeight);savePage({drawing:""});}},"Очистить")
     ),
-    h("div",{className:"paper-scroll",ref:wrapRef},
-      h("div",{className:"paper",style:{transform:`scale(${zoom})`,width:`${100/zoom}%`,height:`${100/zoom}%`}},
+    h("div",{className:"paper-scroll"},
+      h("div",{className:"paper"},
         h("span",{className:"page-label"},`Лист ${db.page+1}`),
-        h("span",{className:"zoom-label"},`${Math.round(zoom*100)}%`),
         h("textarea",{value:page.text,onChange:e=>savePage({text:e.target.value}),disabled:tool!=="text",placeholder:voiceListening?"Говорите…":""}),
         h("canvas",{ref:canvasRef,className:tool==="text"?"disabled":"",
           onPointerDown:pointerDown,onPointerMove:pointerMove,onPointerUp:pointerUp,onPointerCancel:pointerUp
@@ -529,7 +868,7 @@ function VoiceDock({ listening, text, error, onMic, onDeleteWord, screen, onNote
       h("div",{className:"voice-live-head"},h("b",null,listening?"Слушаю…":error?"Ошибка":"Распознано"),listening?h("button",{onClick:onDeleteWord},"⌫ слово"):null),
       h("div",{className:"voice-live-text"},error || text || "Говорите…")
     ):null,
-    h("aside",{className:"float-dock"},
+    h("aside",{className:`float-dock ${screen==="home"?"over-drawer":""}`},
       h("button",{className:"float-btn",onClick:onNotebook,title:"Блокнот"},screen==="notebook"&&notebookMode==="gallery"?"✎":"▤"),
       h("button",{className:"float-btn",onClick:onBack,title:"Назад/домой"},screen==="home"?"⌂":"←"),
       h("button",{className:`float-btn mic ${listening?"listening":""}`,onClick:onMic,title:"Голосовой ввод"},"🎙")
@@ -542,21 +881,33 @@ function App() {
   const [light,setLight]=useTheme();
   const [search,setSearch]=useState("");
   const [screen,setScreen]=useState("home");
+  const [selectedDay,setSelectedDay]=useState(iso());
+  const [activeSectionId,setActiveSectionId]=useState(null);
   const [notebookMode,setNotebookMode]=useState("editor");
-  const [weekAnchor,setWeekAnchor]=useState(iso());
   const [modal,setModal]=useState(null);
-  const mainTouch=useRef(null);
+  const [appsOpen,setAppsOpen]=useState(false);
+  const [transferTask,setTransferTask]=useState(null);
 
   const completeTask=task=>setDb(prev=>({
     ...prev,
     tasks:prev.tasks.map(t=>t.id===task.id?{...t,done:true}:t),
-    completed:[{text:task.text,origin:"План",at:new Date().toLocaleString("ru-RU")},...prev.completed]
+    completed:[{text:task.text,origin:"План дня",at:new Date().toLocaleString("ru-RU")},...prev.completed]
   }));
 
-  const moveTask=task=>{
-    const value=prompt("Новая дата YYYY-MM-DD",task.date||iso());
-    if(!value)return;
-    setDb(prev=>({...prev,tasks:prev.tasks.map(t=>t.id===task.id?{...t,date:value}:t)}));
+  const moveTaskDate=(task,date)=>{
+    setDb(prev=>({...prev,tasks:prev.tasks.map(t=>t.id===task.id?{...t,date}:t)}));
+    setTransferTask(null);
+  };
+
+  const moveTaskCategory=(task,sectionId)=>{
+    setDb(prev=>({
+      ...prev,
+      tasks:prev.tasks.filter(t=>t.id!==task.id),
+      sections:prev.sections.map(s=>s.id===sectionId
+        ? {...s,items:[{id:uid(),title:task.text,subnotes:[]},...s.items]}
+        : s)
+    }));
+    setTransferTask(null);
   };
 
   const routeVoice=useCallback(text=>{
@@ -564,9 +915,13 @@ function App() {
 
     if(/^(сделано|выполнено|готово)$/.test(low)){
       setDb(prev=>{
-        const note=prev.notes[0];
-        if(!note)return prev;
-        return {...prev,notes:prev.notes.slice(1),completed:[{text:note.text,origin:"Заметки",at:new Date().toLocaleString("ru-RU")},...prev.completed]};
+        const task=prev.tasks.find(t=>!t.done && t.date===(screen==="home"?selectedDay:iso()));
+        if(!task)return prev;
+        return {
+          ...prev,
+          tasks:prev.tasks.map(t=>t.id===task.id?{...t,done:true}:t),
+          completed:[{text:task.text,origin:"План дня",at:new Date().toLocaleString("ru-RU")},...prev.completed]
+        };
       });
       return;
     }
@@ -588,21 +943,21 @@ function App() {
     if(buy){
       let clean=String(text).replace(/добавь|добавить|купить для производства|для производства/gi," ").replace(/\s+/g," ").trim();
       if(!clean)clean=text;
-      setDb(prev=>({...prev,sections:prev.sections.map(s=>s.id==="buy"?{...s,items:[clean,...s.items]}:s)}));
+      setDb(prev=>({...prev,sections:prev.sections.map(s=>s.id==="buy"?{...s,items:[{id:uid(),title:clean,subnotes:[]},...s.items]}:s)}));
       return;
     }
 
-    if(employee || date){
+    if(employee || date || screen==="home"){
       let clean=stripEmployee(text,employee);
       clean=cleanSchedulingWords(clean);
       if(!clean)clean=text;
-      const task={id:uid(),text:clean,date:date||iso(),time:"",employeeId:employee?.id||null,done:false};
+      const task={id:uid(),text:clean,date:date||(screen==="home"?selectedDay:iso()),time:"",employeeId:employee?.id||null,done:false};
       setDb(prev=>({...prev,tasks:[...prev.tasks,task]}));
       return;
     }
 
     setDb(prev=>({...prev,notes:[{id:uid(),text},...prev.notes]}));
-  },[db,notebookMode,screen,setDb]);
+  },[db,notebookMode,screen,selectedDay,setDb]);
 
   const voice=useVoiceRecognition({onCommit:routeVoice});
 
@@ -628,45 +983,48 @@ function App() {
 
   const selectCalendarDate=value=>{
     setModal(null);
-    setWeekAnchor(value);
-    setScreen("week");
+    setSelectedDay(value);
+    setScreen("home");
   };
 
   const openCalendar=()=>setModal("calendar");
-
-  const onMainTouchStart=e=>{
-    if(e.target.closest("[data-noswipe],button,input,textarea"))return;
-    mainTouch.current={x:e.touches[0].clientX,y:e.touches[0].clientY};
-  };
-  const onMainTouchEnd=e=>{
-    if(!mainTouch.current)return;
-    const dx=e.changedTouches[0].clientX-mainTouch.current.x;
-    const dy=e.changedTouches[0].clientY-mainTouch.current.y;
-    mainTouch.current=null;
-    if(Math.abs(dx)<65||Math.abs(dx)<Math.abs(dy)*1.2)return;
-    if(dx>0)setScreen("overdue");
-    else{setWeekAnchor(iso());setScreen("week");}
-  };
+  const openCalculator=()=>setModal("calc");
 
   let content;
-  if(screen==="home") content=h("div",{className:"swipe-stage",onTouchStart:onMainTouchStart,onTouchEnd:onMainTouchEnd},
-      h(Home,{db,setDb,search,openScreen:setScreen,openCalendar}));
-  else if(screen==="week") content=h(WeekPlanner,{db,anchor:weekAnchor,setAnchor:setWeekAnchor,onBack:goHome,onDone:completeTask,onMove:moveTask});
-  else if(screen==="overdue") content=h(Overdue,{db,onBack:goHome,onDone:completeTask,onMove:moveTask});
+  if(screen==="home") content=h(DayHome,{
+      db,setDb,selectedDay,setSelectedDay,search,onCompleteTask:completeTask,onMoveTask:setTransferTask,
+      onOpenSection:id=>{
+        if(id==="completed"){setScreen("completed");return;}
+        setActiveSectionId(id);setScreen("section");
+      }
+    });
+  else if(screen==="section") content=h(SectionScreen,{db,setDb,sectionId:activeSectionId,onBack:goHome});
   else if(screen==="employees") content=h(Employees,{db,onBack:goHome});
   else if(screen==="completed") content=h(Completed,{db,onBack:goHome});
   else if(screen==="notebook") content=h(Notebook,{db,setDb,mode:notebookMode,setMode:setNotebookMode,onBack:goHome,voiceListening:voice.listening});
 
   return h("div",{className:"app"},
-    screen!=="notebook" ? h(Header,{search,setSearch,onSettings:()=>setModal("settings"),onCalc:()=>setModal("calc"),light,setLight,onCalendar:openCalendar}) : null,
+    screen!=="notebook" ? h(Header,{
+      search,setSearch,onSettings:()=>setModal("settings"),light,setLight,onApps:()=>setAppsOpen(true)
+    }) : null,
     content,
     h(VoiceDock,{
       listening:voice.listening,text:voice.displayText,error:voice.error,onMic:voice.toggle,onDeleteWord:voice.deleteLastWord,
       screen,onNotebook:openNotebook,notebookMode,onBack:contextBack
     }),
+    appsOpen?h(AppsMenu,{
+      onClose:()=>setAppsOpen(false),
+      onEmployees:()=>setScreen("employees"),
+      onCalendar:openCalendar,
+      onCalculator:openCalculator,
+      onNotebook:openNotebook
+    }):null,
+    transferTask?h(TransferModal,{
+      task:transferTask,db,onMoveDate:moveTaskDate,onMoveCategory:moveTaskCategory,onClose:()=>setTransferTask(null)
+    }):null,
     modal==="settings"?h(SettingsModal,{onClose:()=>setModal(null)}):null,
     modal==="calc"?h(CalculatorModal,{onClose:()=>setModal(null)}):null,
-    modal==="calendar"?h(CalendarModal,{initial:weekAnchor,onSelect:selectCalendarDate,onClose:()=>setModal(null)}):null
+    modal==="calendar"?h(CalendarModal,{initial:selectedDay,db,onSelect:selectCalendarDate,onClose:()=>setModal(null)}):null
   );
 }
 
